@@ -1,0 +1,4 @@
+project_id = "kulas-poker"
+
+[functions.game]
+verify_jwt = true
