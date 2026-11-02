@@ -75,3 +75,19 @@ jobs:
           path: .
       - id: deploy
         uses: actions/deploy-pages@v4
+
+  na-zywo:
+    needs: aplikacja
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --no-audit --no-fund
+      - name: Sprawdzenie prawdziwego serwera i strony
+        env:
+          TABLE_CODE: ${{ secrets.TABLE_CODE }}
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+          PAGE_URL: https://kulas-poker.github.io/kulas-poker/
+        run: sleep 20 && node tests/live-smoke.mjs

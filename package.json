@@ -5,6 +5,7 @@
     "test": "node tests/logic.test.mjs && node tests/server.test.mjs && node tests/e2e-preview.mjs && node tests/e2e-online.mjs"
   },
   "devDependencies": {
-    "playwright": "1.48.2"
+    "playwright": "1.48.2",
+    "@supabase/supabase-js": "2.45.4"
   }
 }
