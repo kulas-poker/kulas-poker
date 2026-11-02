@@ -235,6 +235,7 @@ function renderTable(s){
     else if(st.folded) tag='pas';
     else if(st.allIn) tag='all-in';
     else if(h.last&&h.last[p.id]) tag=esc(h.last[p.id]);
+    if(p.away&&(!st||st.folded)){tag='☕ obserwuje';cls+=' away'}
     if(tag && !tag.startsWith('<')) tag=`<span class="tag">${tag}</span>`;
     if(shown && !(h.result&&h.result.showdown)) tag=`<span class="tag hand">pokazuje</span>`;
     let hole='';
@@ -388,7 +389,7 @@ function tickTimer(){
     if(sec<=5&&sec>0&&sec!==lastTickSec){lastTickSec=sec;SFX.tick()}
     if(left===0&&autoActedFor!==h.turnAt&&!tut){
       autoActedFor=h.turnAt;
-      doIt('timeout',{},(ns,now)=>act(ns,me,'fold',0,now)).then(ok=>{if(ok)toast('Czas minął: automatyczny fold.')});
+      doIt('timeout',{},(ns,now)=>timeoutFold(ns,now)).then(ok=>{if(ok)toast('Czas minął: automatyczny fold. Kliknij „Usiądź”, gdy wrócisz.')});
     }
   }
 }
@@ -412,19 +413,20 @@ function renderBar(s){
     const toCall=myTurn?Math.min(h.currentBet-st.bet,meP.chips):0;
     const minRaiseAdd=myTurn?h.currentBet+h.minRaise-st.bet:0;
     const late=live&&!myTurn&&Date.now()-(h.turnAt||0)>SKIP_MS+5000;
-    const elig=s.players.filter(p=>p.chips>0).length;
+    const elig=s.players.filter(p=>p.chips>0&&!p.away).length;
     const canShow=!!(h&&h.result&&!h.result.showdown&&h.st&&h.st[me]&&!(h.shown&&h.shown[me]));
     const lockLeft=h&&h.result&&h.result.at?Math.ceil((HL_MS-(Date.now()-h.result.at))/1000):0;
-    key=`p${lockLeft>0?lockLeft:0}${live}${myTurn}${h?h.no:0}${h?h.stage:''}${h?h.currentBet:0}${st?st.bet:0}${meP.chips}${late}${st&&st.folded}${elig}${canShow}${photos[me]?1:0}`;
+    key=`p${lockLeft>0?lockLeft:0}${live}${myTurn}${h?h.no:0}${h?h.stage:''}${h?h.currentBet:0}${st?st.bet:0}${meP.chips}${late}${st&&st.folded}${elig}${canShow}${photos[me]?1:0}${meP.away?'a':''}`;
     if(myTurn && key!==lastBarKey) betAmt=0;
     const who=live&&h.toAct?esc(nm(s,h.toAct)):'';
-    if(!live) status = elig<2 ? 'Potrzeba co najmniej 2 graczy z żetonami.' : (h?'Rozdanie zakończone.':'Wszyscy gotowi?');
+    if(meP.away) status = live?`Obserwujesz. Ruch: <b>${who}</b>`:'Obserwujesz grę.';
+    else if(!live) status = elig<2 ? 'Potrzeba co najmniej 2 graczy przy stole.' : (h?'Rozdanie zakończone.':'Wszyscy gotowi?');
     else if(myTurn) status='';
     else status=(st&&!st.folded?`Ruch: <b>${who}</b>`:(st?`Spasowałeś. Ruch: <b>${who}</b>`:`Dołączysz od następnego rozdania. Ruch: <b>${who}</b>`));
     const strip=`<div class="me-strip">
         <div class="av mine" data-photo="1" title="Zmień zdjęcie">${avatarHtml(meP)}</div>
         <div class="who"><b>${esc(meP.name)}</b>${moneyHtml(meP)}</div>
-        ${h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycards">${h.hole[me].map((c,ci)=>{const w=shuffleUntil-Date.now()+ci*120;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>`:''}
+        ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycards">${h.hole[me].map((c,ci)=>{const w=shuffleUntil-Date.now()+ci*120;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>`:''}
         ${myTurn?`<button class="btn primary postaw" data-a="bet" type="button">Postaw</button>`:''}
         <div class="stackv">${meP.chips}<small>żetonów</small></div>
       </div>`;
@@ -447,7 +449,11 @@ function renderBar(s){
     } else if(late){
       rest=`<div class="acts" style="grid-template-columns:1fr"><button class="btn" data-a="skip">${who} nie odpowiada: spasuj za niego</button></div>`;
     }
-    controls=`<div class="me-panel ${myTurn?'myturn':''}">${strip}${rack}${rest}</div>`;
+    const awayBtn=!myTurn?`<button class="btn away-btn" data-a="away" type="button">☕ Odejdź od stołu (obserwuj)</button>`:'';
+    if(meP.away){
+      controls=`<div class="me-panel">${strip}<div class="away-note">☕ Obserwujesz grę. Nie dostajesz kart, a Twoje miejsce i żetony czekają.</div>
+        <div class="big-acts" style="grid-template-columns:1fr"><button class="btn allin" data-a="back" type="button">Usiądź<small>wracasz od następnego rozdania</small></button></div></div>`;
+    } else controls=`<div class="me-panel ${myTurn?'myturn':''}">${strip}${rack}${rest}${awayBtn}</div>`;
   }
   $('status').innerHTML=status;
   if(key!==lastBarKey){ $('controls').innerHTML=controls; lastBarKey=key; updateBetUI(); }
@@ -547,6 +553,8 @@ document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-a]'); if(!b) return;
   const a=b.dataset.a;
   if(a==='sit'){watching=false;render();return}
+  if(a==='away') return doIt('away',{},(s,now)=>sitOut(s,me,now));
+  if(a==='back') return doIt('back',{},s=>sitIn(s,me));
   if(a==='deal') return doIt('deal',{},(s,now)=>dealHand(s,now));
   if(a==='rebuy') return doIt('rebuy',{},s=>rebuy(s,me));
   if(a==='show') return doIt('show',{},s=>showCards(s,me));

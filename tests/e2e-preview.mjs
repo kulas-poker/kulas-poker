@@ -68,6 +68,17 @@ async function run(width,height,label){
   await ev(`mutate((s,now)=>{startHand(s,now);return true})`);await p.waitForTimeout(2200);r=await botsUntilMe();
   if(r==='me'){await ev(`(()=>{state=JSON.parse(JSON.stringify(state));state.hand.turnAt=Date.now()-120500})()`);await p.waitForTimeout(800);
     ok(pre+'po 2 minutach automatyczny fold',await ev('viewState().hand.st[me].folded'))}
+  // step away and back
+  if(await ev('P(viewState(),me).away')){
+    ok(pre+'po braku ruchu gracz przechodzi do obserwowania',await p.isVisible('[data-a="back"]'));
+    await p.click('[data-a="back"]');await p.waitForTimeout(150);
+  }
+  await botsUntilMe(); await ev(`(()=>{state=JSON.parse(JSON.stringify(state));if(state.hand&&state.hand.result)state.hand.result.at=0})()`);
+  if(await ev('handActive(viewState())&&viewState().hand.toAct===me')){await p.click('[data-a="fold"]');await p.waitForTimeout(100)}
+  await p.click('[data-a="away"]');await p.waitForTimeout(150);
+  ok(pre+'„Odejdź od stołu” i przycisk „Usiądź”',await ev('P(viewState(),me).away')&&await p.isVisible('[data-a="back"]'));
+  await p.click('[data-a="back"]');await p.waitForTimeout(150);
+  ok(pre+'„Usiądź” wraca do gry',await ev('!P(viewState(),me).away'));
   // chat
   await p.click('#fab');await p.waitForTimeout(200);
   ok(pre+'czat się otwiera i nie zasłania stołu',await ev(`(()=>{const c=$('chat').getBoundingClientRect(),r=$('room').getBoundingClientRect();return c.width>0&&(c.left>=r.right-1||c.top>=r.bottom-1)})()`));

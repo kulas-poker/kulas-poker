@@ -94,5 +94,36 @@ for (let g = 0; g < 400; g++) {
   ok(S.pub.hand.result && S.pub.hand.st[who].folded, 'timeout folds after 2 min');
 }
 
+
+// stepping away from the table and coming back
+{
+  const S = server(); ['a', 'b', 'c'].forEach(id => S.call(id, 'join', { name: id.toUpperCase() }));
+  let t = 9_000_000;
+  S.call('a', 'deal', {}, false, t);
+  const turn = S.pub.hand.toAct;
+  ok(S.call(turn, 'away', {}, false, t).ok, 'away during own turn');
+  ok(S.pub.hand.st[turn].folded && G.P(S.pub, turn).away, 'away folds the current hand and marks the seat');
+  ok(S.call(turn, 'away', {}, false, t).unchanged, 'cannot step away twice');
+  while (S.pub.hand && !S.pub.hand.result) { const h = S.pub.hand; S.call(h.toAct, 'act', { type: h.currentBet - h.st[h.toAct].bet > 0 ? 'call' : 'check' }, false, t); }
+  t += 10_000; S.call('a', 'deal', {}, false, t);
+  ok(!S.pub.hand.order.includes(turn) && S.pub.hand.order.length === 2, 'away player is not dealt in');
+  ok(!S.holes.cards[turn], 'away player gets no cards');
+  ok(G.P(S.pub, turn).chips > 0, 'away player keeps the seat and chips');
+  ok(S.call(turn, 'back', {}, false, t).ok && !G.P(S.pub, turn).away, 'back to the table');
+  ok(!S.pub.hand.order.includes(turn), 'coming back mid-hand waits for the next hand');
+  while (S.pub.hand && !S.pub.hand.result) { const h = S.pub.hand; S.call(h.toAct, 'act', { type: 'fold' }, false, t); }
+  t += 10_000; S.call('b', 'deal', {}, false, t);
+  ok(S.pub.hand.order.includes(turn) && S.pub.hand.order.length === 3, 'dealt in again after "Usiądź"');
+  // only two at the table and one steps away: no hand can start
+  const T = server(); T.call('x', 'join', { name: 'X' }); T.call('y', 'join', { name: 'Y' });
+  T.call('y', 'away', {}, false, t);
+  ok(T.call('x', 'deal', {}, false, t).unchanged, 'no deal with one active player');
+  // timeout marks the silent player as away
+  const U = server(); ['a', 'b', 'c'].forEach(id => U.call(id, 'join', { name: id }));
+  U.call('a', 'deal', {}, false, t); const silent = U.pub.hand.toAct;
+  U.call('b', 'timeout', {}, false, t + 121_000);
+  ok(G.P(U.pub, silent).away, 'player who ran out of time is moved to watching');
+}
+
 console.log(`Serwer: ${checks - fails}/${checks} sprawdzeń OK`);
 if (fails) process.exit(1);

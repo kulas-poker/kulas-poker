@@ -57,6 +57,8 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
       break;
     }
     case 'rebuy': done = G.rebuy(s, uid); break;
+    case 'away': done = G.sitOut(s, uid, now); break;
+    case 'back': done = G.sitIn(s, uid); break;
     case 'show': done = G.showCards(s, uid); break;
     case 'timeout': done = G.timeoutFold(s, now); break;
     case 'blinds': done = G.setBlinds(s, Number(args.sb), Number(args.bb)); break;

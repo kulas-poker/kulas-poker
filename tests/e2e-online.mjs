@@ -101,6 +101,26 @@ await sleep(5200);
 await B.click('[data-a="deal"]'); await sleep(2600);
 const no = await ev(C, 'viewState().hand.no');
 ok('drugie rozdanie startuje', no === 2);
+
+// step away and come back (C)
+const finishHand = async () => { for (let i = 0; i < 40; i++) {
+  const st = await ev(A, `(()=>{const s=viewState();return s.hand&&!s.hand.result?s.hand.toAct:'end'})()`); if (st === 'end') return;
+  const ids = await Promise.all([A, B, C].map(p => ev(p, 'me'))); const p = [A, B, C][ids.indexOf(st)];
+  await p.click('[data-a="call"],[data-a="check"]'); await sleep(250); } };
+if (await ev(C, 'viewState().hand.toAct===me')) { await C.click('[data-a="fold"]'); await sleep(300); }
+await C.click('[data-a="away"]'); await sleep(400);
+ok('„Odejdź od stołu” → panel z przyciskiem „Usiądź”', await C.isVisible('[data-a="back"]'));
+ok('inni widzą, że obserwuje', await ev(A, `!!P(viewState(),${JSON.stringify(await ev(C,'me'))}).away && document.body.textContent.includes('obserwuje')`));
+await finishHand(); await sleep(5300);
+await A.click('[data-a="deal"]'); await sleep(2600);
+const cId = await ev(C, 'me');
+ok('obserwujący nie dostaje kart', !(await ev(A, `viewState().hand.order.includes(${JSON.stringify(cId)})`)) && (await ev(C, `document.querySelectorAll('.mycards .card').length`)) === 0);
+await C.click('[data-a="back"]'); await sleep(400);
+ok('„Usiądź” wraca do gry', await ev(A, `!P(viewState(),${JSON.stringify(cId)}).away`));
+await finishHand(); await sleep(5300);
+await B.click('[data-a="deal"]'); await sleep(2600);
+ok('po powrocie znów dostaje karty', await ev(C, `viewState().hand.order.includes(me) && document.querySelectorAll('.mycards .card:not(.back)').length===2`));
+await finishHand();
 // leave
 await C.click('#btnMenu'); await C.click('#leaveBtn'); await sleep(500);
 ok('wyjście od stołu widać u innych', (await ev(A, 'viewState().players.length')) === 2);

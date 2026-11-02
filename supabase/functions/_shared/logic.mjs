@@ -49,7 +49,7 @@ function handActive(s){return !!(s.hand&&!s.hand.result)}
 function breakdown(a){const out=[];for(const d of DENOMS){const c=Math.floor(a/d);if(c){out.push([d,c]);a-=c*d}}return out}
 
 function startHand(s,now){
-  const elig=s.players.filter(p=>p.chips>0).map(p=>p.id);
+  const elig=s.players.filter(p=>p.chips>0&&!p.away).map(p=>p.id);
   if(elig.length<2||handActive(s)) return false;
   const dealer=nextIn(elig,s.dealerId,s.players.map(p=>p.id));
   s.dealerId=dealer;
@@ -225,8 +225,24 @@ function dealHand(s,now){
 function timeoutFold(s,now){
   const h=s.hand; if(!handActive(s)||now-(h.turnAt||0)<SKIP_MS) return false;
   const id=h.toAct; addLog(s,`${nm(s,id)}: czas minął.`);
-  return act(s,id,'fold',0,now);
+  const ok=act(s,id,'fold',0,now);
+  // someone who does not answer is probably away: stop dealing them in until they press "Usiądź"
+  const p=P(s,id); if(ok&&p&&!p.away){p.away=true;addLog(s,`${nm(s,id)} odchodzi od stołu (brak ruchu).`)}
+  return ok;
 }
+function sitOut(s,id,now){
+  const p=P(s,id); if(!p||p.away) return false;
+  p.away=true;
+  if(handActive(s)&&s.hand.st[id]&&!s.hand.st[id].folded) foldOut(s,id,now);
+  addLog(s,`${nm(s,id)} odchodzi od stołu i obserwuje.`);
+  return true;
+}
+function sitIn(s,id){
+  const p=P(s,id); if(!p||!p.away) return false;
+  p.away=false; addLog(s,`${nm(s,id)} wraca do stołu.`);
+  return true;
+}
+
 function setBlinds(s,a,b){
   if(!LEVELS.some(([x,y])=>x===a&&y===b)) return false;
   if(s.sb===a&&s.bb===b) return false;
@@ -241,4 +257,4 @@ function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został 
 export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
   freshDeck,rnd,shuffle,eval5,best7,newState,migrate,P,nm,addLog,nextIn,commit,handActive,breakdown,
   startHand,drawCard,dealStreet,cardTxt,statRow,recordHand,revealAll,proceed,act,winAll,showdown,foldOut,
-  joinPlayer,leavePlayer,rebuy,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
+  joinPlayer,leavePlayer,rebuy,sitOut,sitIn,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
