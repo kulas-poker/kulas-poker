@@ -90,6 +90,23 @@ try {
   await A.send('leave'); await B.send('leave');
 } catch (e) { ok('stolik testowy', false, String(e && e.message || e)); }
 
+// presence (who has the app open) — on a separate channel so the robots never show up at the real table
+try {
+  const X = await tester('Obecność X'), Y = await tester('Obecność Y');
+  const join = (t) => new Promise((res, rej) => {
+    const ch = t.c.channel('kulas-selftest', { config: { presence: { key: t.uid } } });
+    ch.on('presence', { event: 'sync' }, () => {});
+    ch.subscribe(st => { if (st === 'SUBSCRIBED') ch.track({ at: Date.now() }).then(() => res(ch)); else if (st === 'CHANNEL_ERROR' || st === 'TIMED_OUT') rej(new Error(st)); });
+    setTimeout(() => rej(new Error('timeout')), 15000);
+  });
+  const cx = await join(X), cy = await join(Y);
+  const seen = async (ch, uid, want) => { for (let i = 0; i < 30; i++) { if (Object.keys(ch.presenceState()).includes(uid) === want) return true; await new Promise(r => setTimeout(r, 500)); } return false; };
+  ok('obecność: widać, kto ma otwartą aplikację', await seen(cy, X.uid, true));
+  await X.c.removeChannel(cx);
+  ok('obecność: po zamknięciu aplikacji znika z listy', await seen(cy, X.uid, false));
+  await Y.c.removeChannel(cy); X.c.realtime.disconnect(); Y.c.realtime.disconnect();
+} catch (e) { ok('obecność graczy', false, String(e && e.message || e)); }
+
 const page = await fetch(process.env.PAGE_URL).then(r => r.text()).catch(e => String(e));
 ok('strona aplikacji się otwiera', page.includes('Kulas Poker'), process.env.PAGE_URL);
 console.log(results.join('\n')); console.log(`\nNA ŻYWO: ${results.length - failed}/${results.length} OK`);

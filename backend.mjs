@@ -77,7 +77,7 @@ export function createBackend(cfg) {
       return (data || []).map(r => ({ startedAt: Date.parse(r.started_at), endedAt: Date.parse(r.ended_at), hands: r.hands, players: r.players || [] }));
     },
 
-    subscribe({ onState, onChat, onPhotos, onGifs, onStatus }) {
+    subscribe({ onState, onChat, onPhotos, onGifs, onStatus, onPresence }) {
       let chat = [], photos = {}, gifs = [];
       const loadState = async () => {
         const { data } = await sb.from('games').select('state').eq('id', TABLE).maybeSingle();
@@ -97,7 +97,9 @@ export function createBackend(cfg) {
       };
       const all = () => Promise.all([loadState(), loadChat(), loadPhotos(), loadGifs()]).catch(() => {});
 
-      sb.channel('kulas')
+      // presence: who has the app open right now (a closed browser drops out after a few seconds)
+      const ch = sb.channel('kulas', { config: { presence: { key: uid } } });
+      ch.on('presence', { event: 'sync' }, () => { onPresence && onPresence(Object.keys(ch.presenceState())); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${TABLE}` },
           p => { if (p.new && p.new.state) onState(p.new.state); })
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat' },
@@ -107,7 +109,7 @@ export function createBackend(cfg) {
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'gif_library' },
           p => { gifs = gifs.concat(p.new.path); onGifs(gifs); })
         .subscribe(status => {
-          if (status === 'SUBSCRIBED') { all(); onStatus && onStatus(true); }
+          if (status === 'SUBSCRIBED') { all(); onStatus && onStatus(true); ch.track({ at: Date.now() }).catch(() => {}); }
           else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') onStatus && onStatus(false);
         });
       all();

@@ -205,10 +205,10 @@ function joinPlayer(s,id,name){
   s.players.push({id,name,chips:START,buyins:1}); addLog(s,`${name} siada przy stole.`);
   return true;
 }
-function leavePlayer(s,id,now){
-  foldOut(s,id,now);
+function leavePlayer(s,id,now,byOwner=false){
   const p=P(s,id); if(!p) return false;
-  addLog(s,`${p.name.split(' ')[0]} wstaje od stołu.`);
+  foldOut(s,id,now);
+  addLog(s,byOwner?`Właściciel usunął ${p.name} od stołu.`:`${p.name.split(' ')[0]} wstaje od stołu.`);
   if(s.game&&s.game[id]) s.game[id].leftAt=now; // left before the end of the game
   s.players=s.players.filter(x=>x.id!==id);
   return true;

@@ -27,6 +27,7 @@ const $=id=>document.getElementById(id);
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const TAB=Math.random().toString(36).slice(2,8);
+let onlineIds=null,kickAsk=null;
 let KP=null,me=null,isOwner=false,myHole=null,serverOk=false,isMember=false,live=false;
 const SHUF_MS=1900, DEAL_STEP=230; let betChips=[], justDropped=false, dealPlan=null, boardAnim=null, demoHistory=[], histTab='hands', feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
 let messages=[],chatOpen=false,pickerTab=null,gifLib=[],lastSeen=0,firstChatLoad=true;
@@ -150,6 +151,7 @@ function render(){
   $('btnMenu').hidden=!online();
   $('photoChange').hidden=!seated; $('leaveBtn').hidden=!seated;
   renderRanking(s);
+  if(isOwner&&!$('menuBox').hidden) renderOwnerPlayers();
   $('join').hidden = seated || watching || !(serverOk||demo) || demo;
   $('fab').hidden = !online() || chatOpen;
   if(!$('join').hidden){ $('joinBtn').disabled = isMember && s.players.length>=MAXP; }
@@ -818,7 +820,7 @@ function renderGames(list){
   html+=list.map(g=>`<div class="gcard"><div class="ghead"><b>${esc(day(g.endedAt))}</b><span>${tm(g.startedAt)}–${tm(g.endedAt)} · ${g.hands} rozdań · ${g.players.length} graczy</span></div>${rows(g.players)}</div>`).join('');
   box.innerHTML=html||'<div class="lh-empty">Nie ma jeszcze zakończonych gier. Gra trafia tutaj, gdy właściciel kliknie w Menu „Zakończ grę i zapisz w historii”.</div>';
 }
-$('btnMenu').onclick=()=>{$('menuBox').hidden=false;$('resetConfirm').hidden=true;$('resetBtn').hidden=false};
+$('btnMenu').onclick=()=>{$('menuBox').hidden=false;kickAsk=null;renderOwnerPlayers();$('resetConfirm').hidden=true;$('resetBtn').hidden=false};
 $('rankMenu').onclick=()=>{$('menuBox').hidden=true;renderRanking(viewState());$('rankReset').hidden=false;$('rankResetOk').hidden=true;$('rankBox').hidden=false};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-rtab]');if(!b)return;rankTab=b.dataset.rtab;$('rankReset').hidden=false;$('rankResetOk').hidden=true;renderRanking(viewState())});
 $('rankReset').onclick=()=>{$('rankReset').hidden=true;$('rankResetOk').hidden=false};
@@ -1068,10 +1070,35 @@ function startLive(){
     onChat,
     onPhotos:m=>{photos=m;if(state&&!demo)renderTable(viewState())},
     onGifs:l=>{gifLib=l;if(!$('picker').hidden&&pickerTab==='gif')renderPicker()},
-    onStatus:okNow=>{if(!okNow)toast('Połączenie zerwane, łączę ponownie…')}
+    onStatus:okNow=>{if(!okNow)toast('Połączenie zerwane, łączę ponownie…')},
+    onPresence:list=>{onlineIds=new Set(list);if(!$('menuBox').hidden)renderOwnerPlayers()}
   });
   render();
 }
+// owner: who sits at the table, who has the app open, and a minus to remove someone
+function renderOwnerPlayers(){
+  const box=$('ownerPlayersList'); if(!box||!isOwner) return;
+  const s=viewState();
+  $('ownerPlayersN').textContent=`(${s.players.length})`;
+  if(kickAsk&&!P(s,kickAsk)) kickAsk=null;
+  box.innerHTML=s.players.length?s.players.map(p=>{
+    const on=p.id===me||demo||!onlineIds?null:onlineIds.has(p.id);
+    const info=[p.id===me?'to Ty':'',on===true?'<span class="op-on">● w aplikacji</span>':on===false?'<span class="op-off">● zamknął aplikację</span>':'',p.away?'odszedł od stołu':'',`${p.chips} żet.`].filter(Boolean).join(' · ');
+    const ask=kickAsk===p.id, id=esc(p.id);
+    const btns=p.id===me?'':ask?`<button class="btn danger" type="button" data-kick-yes="${id}">Usuń</button><button class="btn" type="button" data-kick-no="1">Nie</button>`
+      :`<button class="op-minus" type="button" data-kick="${id}" aria-label="Usuń ${esc(p.name)} od stołu" title="Usuń od stołu">−</button>`;
+    return `<div class="op-row${ask?' ask':''}" data-op="${id}"><span class="op-av">${photos[p.id]?`<img src="${esc(photos[p.id])}" alt="">`:initials(p.name)}</span><div class="op-txt"><b>${esc(p.name)}</b><small>${ask?'Usunąć od stołu?':info}</small></div>${btns}</div>`;
+  }).join(''):'<p class="op-note">Nikt jeszcze nie siedzi przy stole.</p>';
+}
+document.addEventListener('click',async e=>{
+  const k=e.target.closest('[data-kick]'); if(k){kickAsk=k.dataset.kick;renderOwnerPlayers();return}
+  if(e.target.closest('[data-kick-no]')){kickAsk=null;renderOwnerPlayers();return}
+  const y=e.target.closest('[data-kick-yes]'); if(y){
+    const id=y.dataset.kickYes, name=(P(viewState(),id)||{}).name||'Gracz'; kickAsk=null;
+    if(await doIt('kick',{id},(s,now)=>leavePlayer(s,id,now,true))) toast(`${name} usunięty od stołu.`);
+    renderOwnerPlayers();
+  }
+});
 function setOwnerUI(){
   $('ownerTools').hidden=!isOwner; $('ownerLogin').hidden=isOwner||demo; $('ownerLogout').hidden=!isOwner||demo;
   const code=isOwner&&!demo&&KP&&KP.tableCode?KP.tableCode():null;

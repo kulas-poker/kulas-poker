@@ -17,11 +17,11 @@ window.KP_MOCK = (() => {
     async uploadGif() { throw new Error('no gifs in tests'); },
     gifUrl: (p) => p,
     history: () => j('history'),
-    subscribe({ onState, onChat, onPhotos, onGifs }) {
-      const load = { state: async () => onState((await j('state')).state), chat: async () => onChat(await j('chat')), photos: async () => onPhotos(await j('photos')) };
-      const es = new EventSource('/api/events');
+    subscribe({ onState, onChat, onPhotos, onGifs, onPresence }) {
+      const load = { presence: async () => onPresence && onPresence((await j('presence')).online || []), state: async () => onState((await j('state')).state), chat: async () => onChat(await j('chat')), photos: async () => onPhotos(await j('photos')) };
+      const es = new EventSource('/api/events?uid=' + uid);
       es.onmessage = e => load[e.data] && load[e.data]();
-      load.state(); load.chat(); load.photos(); onGifs([]);
+      load.state(); load.chat(); load.photos(); load.presence(); onGifs([]);
     },
   };
 })();

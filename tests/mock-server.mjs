@@ -8,6 +8,7 @@ const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..')
 const TABLE_CODE = 'TEST', ADMIN_PIN = '1234';
 const db = { history: [], pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
 const clients = new Set();
+const onlineUids = new Map(); // uid -> open pages (like Supabase presence)
 const push = (type) => { for (const res of clients) res.write(`data: ${type}\n\n`); };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
@@ -33,6 +34,7 @@ function api(route, body, q) {
   if (route === 'chat') { if (body) { db.chat.push({ ...body, uid, at: Date.now() }); push('chat'); return { ok: true }; } return db.chat.slice(-120); }
   if (route === 'photos') { if (body) { db.photos[uid] = body.photo; push('photos'); return { ok: true }; } return db.photos; }
   if (route === 'member') return { member: true };
+  if (route === 'presence') return { online: [...onlineUids.keys()] };
   if (route === 'history') return db.history.slice(0, 60);
   return { error: 'unknown' };
 }
@@ -42,7 +44,10 @@ export function start(port = 0) {
     const u = new URL(req.url, 'http://x');
     if (u.pathname === '/api/events') {
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
-      clients.add(res); req.on('close', () => clients.delete(res)); return;
+      const pu = u.searchParams.get('uid');
+      if (pu) onlineUids.set(pu, (onlineUids.get(pu) || 0) + 1);
+      clients.add(res); push('presence');
+      req.on('close', () => { clients.delete(res); if (pu) { const n = (onlineUids.get(pu) || 1) - 1; if (n > 0) onlineUids.set(pu, n); else onlineUids.delete(pu); } push('presence'); }); return;
     }
     if (u.pathname.startsWith('/api/')) {
       let data = '';

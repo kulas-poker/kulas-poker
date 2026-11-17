@@ -144,6 +144,23 @@ ok('zakończona gra w historii u innych graczy', /rozdań/.test(gtxt) && gtxt.in
 ok('gracz, który wyszedł wcześniej, jest w historii z godziną', gtxt.includes('Celina Lis') && gtxt.includes('przed końcem gry'));
 ok('po zakończeniu gry wszyscy mają po 1000', await ev(A, 'viewState().players.every(p=>p.chips===1000)'));
 await B.click('[data-close="logBox"]');
+// owner manages the players: someone closed the browser and still sits at the table
+const E = await player('Fryzjer');
+await E.fill('#nameInput', 'Fryzjer z Turcji'); await E.fill('#codeInput', 'TEST'); await E.click('#joinBtn'); await sleep(500);
+const eId = await ev(E, 'me');
+ok('nowy gracz siada przy stole', await ev(D, `!!P(viewState(),${JSON.stringify(eId)})`));
+await E.context().close(); await sleep(600);
+await D.click('#btnMenu'); await D.click('#ownerPlayers summary'); await sleep(300);
+const row = id => `#ownerPlayersList [data-op="${id}"]`;
+ok('właściciel widzi listę graczy przy stole', (await ev(D, `$('ownerPlayersList').querySelectorAll('.op-row').length`)) === (await ev(D, 'viewState().players.length')));
+ok('widać, kto zamknął aplikację, a kto jest', (await D.textContent(row(eId))).includes('zamknął aplikację') && (await D.textContent(row(await ev(A, 'me')))).includes('w aplikacji'));
+await D.click(`${row(eId)} [data-kick]`); await sleep(150);
+ok('minus pyta o potwierdzenie', await D.isVisible(`${row(eId)} [data-kick-yes]`) && !!(await ev(D, `P(viewState(),${JSON.stringify(eId)})`)));
+await D.click(`${row(eId)} [data-kick-yes]`); await sleep(600);
+ok('właściciel usuwa gracza, inni to widzą', !(await ev(A, `P(viewState(),${JSON.stringify(eId)})`)) && !(await ev(D, `!!document.querySelector('${row(eId)}')`)));
+ok('w dzienniku: usunięty przez właściciela', (await ev(A, `(viewState().log||[]).join('|')`)).includes('Właściciel usunął Fryzjer z Turcji'));
+ok('zwykły gracz nie ma listy i nie może usuwać', (await ev(B, `$('ownerTools').hidden`)) && (await ev(B, `KP.send('kick',{id:${JSON.stringify(await ev(A, 'me'))}}).then(r=>r.ok)`)) === false);
+await D.click('[data-close="menuBox"]');
 ok('brak błędów JavaScript', errs.length === 0, errs.slice(0, 3).join(' | '));
 
 await browser.close(); server.close();

@@ -66,7 +66,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
     case 'blinds': done = G.setBlinds(s, Number(args.sb), Number(args.bb)); break;
     case 'reset': archive = G.endGame(s, now); done = true; break;
     case 'resetRanking': done = G.resetRanking(s); break;
-    case 'kick': done = G.leavePlayer(s, String(args.id || ''), now); break; // owner removes a player who is gone
+    case 'kick': done = G.leavePlayer(s, String(args.id || ''), now, true); break; // owner removes a player who is gone
     default: return { ok: false, error: 'Nieznana akcja.' };
   }
   if (!done) return { ok: true, unchanged: true };

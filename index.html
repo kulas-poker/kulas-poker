@@ -158,6 +158,27 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 @keyframes deal{from{transform:translateY(-14px);opacity:0}to{transform:none;opacity:1}}
 
 
+/* owner: players at the table */
+.owner-players{border:1px solid var(--line);border-radius:12px;background:var(--panel-2)}
+.owner-players summary{cursor:pointer;list-style:none;padding:12px 14px;font-weight:700;display:flex;align-items:center;gap:6px}
+.owner-players summary::-webkit-details-marker{display:none}
+.owner-players summary::after{content:"▾";margin-left:auto;color:var(--muted);transition:transform .2s}
+.owner-players[open] summary::after{transform:rotate(180deg)}
+.owner-players summary b{color:var(--muted);font-weight:600}
+#ownerPlayersList{display:flex;flex-direction:column;gap:6px;padding:0 10px 4px}
+.op-row{display:flex;align-items:center;gap:10px;padding:8px;border-radius:10px;background:var(--bg)}
+.op-row.ask{box-shadow:inset 0 0 0 1.5px #e5534b}
+.op-av{flex:none;width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--panel);font-weight:800;font-size:13px;overflow:hidden}
+.op-av img{width:100%;height:100%;object-fit:cover}
+.op-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.op-txt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-txt small{color:var(--muted);font-size:12px}
+.op-on{color:#5fd38a}.op-off{color:#ff8a80}
+.op-minus{flex:none;width:38px;height:38px;border-radius:50%;border:none;background:#8f2a24;color:#fff;font:800 24px/1 var(--f-body);display:grid;place-items:center;cursor:pointer}
+.op-minus:hover{background:#b3342c}
+.op-row .btn{padding:8px 12px;font-size:14px}
+.op-note{font-size:12px;color:var(--muted);padding:6px 14px 12px;margin:0}
+
 /* seats */
 .seat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:clamp(78px,22vw,120px);z-index:3}
 .av{position:relative;width:clamp(40px,10.5vw,58px);height:clamp(40px,10.5vw,58px);border-radius:50%;background:var(--panel-2);border:3px solid var(--panel);box-shadow:0 3px 10px rgba(0,0,0,.5);display:grid;place-items:center;font-family:var(--f-display);font-weight:800;font-size:18px;color:var(--fg)}
@@ -729,6 +750,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
         <span>Kod stołu dla znajomych</span>
         <div><b id="ownerCode">—</b><button class="btn" type="button" id="copyCode">Kopiuj</button></div>
       </div>
+      <details class="owner-players" id="ownerPlayers">
+        <summary>👥 Gracze przy stole <b id="ownerPlayersN"></b></summary>
+        <div id="ownerPlayersList"></div>
+        <p class="op-note">Minus usuwa gracza od stołu (np. gdy zamknął aplikację). Jego wynik zostaje w grze i w historii, a w bieżącym rozdaniu pasuje.</p>
+      </details>
       <button class="btn" type="button" id="blindsMenuBtn">Zmień ciemne</button>
       <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupienia). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
       <button class="btn danger" type="button" id="resetBtn">Zakończ grę i zapisz w historii</button>
