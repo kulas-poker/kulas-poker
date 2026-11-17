@@ -54,6 +54,8 @@ ok('karty graczy różne', new Set(allCards).size === allCards.length);
 ok('karty w panelu po tasowaniu', (await Promise.all([A, B, C].map(p => ev(p, `document.querySelectorAll('.mycards .card:not(.back)').length`)))).every(n => n === 2));
 const raw = await Promise.all([A, B, C].map(p => ev(p, 'JSON.stringify(state)')));
 ok('cudze karty nie docierają nawet do telefonu', hands.every((h, i) => [0, 1, 2].filter(k => k !== i).every(k => hands[k].mine.every(c => !raw[i].includes(`"${c}"`)))));
+await sleep(1200);
+ok('każdy widzi, co ma z kartami na stole (tylko swoje)', await ev(B, `(()=>{const h=viewState().hand,el=document.querySelector('#controls .myhand b');return !!el&&el.textContent===handLabel(h.hole[me].concat(visibleBoard(h)))})()`) && await ev(A, `!document.querySelector('#controls .myhand')||document.querySelector('#controls .myhand b').textContent===handLabel(viewState().hand.hole[me].concat(visibleBoard(viewState().hand)))`), await ev(B, `JSON.stringify([document.querySelector('#controls .myhand')?.outerHTML, viewState().hand.hole[me], visibleBoard(viewState().hand), dealDelay(me,1)])`));
 // the same name on another phone = the same account (seat, chips and cards); letters' case and Polish letters do not matter
 const B2 = await player('Bartek2');
 await B2.fill('#nameInput', '  bartek   KOT '); await B2.fill('#codeInput', 'test'); await B2.click('#joinBtn'); await sleep(700);

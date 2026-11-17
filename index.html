@@ -66,7 +66,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* main split: table + chat */
 .main{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
 @media (min-width:860px){.main{flex-direction:row}}
-.room{flex:1;min-height:0;min-width:0;position:relative}
+.room{flex:1;min-height:0;min-width:0;position:relative;overflow-x:clip}
 
 /* table */
 .felt{--rw:clamp(12px,2.8vw,22px);position:absolute;inset:11% 9%;border-radius:50%;border:var(--rw) solid transparent;
@@ -339,6 +339,10 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .me-strip{display:flex;align-items:center;gap:10px;min-width:0}
 .me-strip .money{justify-content:flex-start}
 .me-strip .mycards{display:flex;gap:4px;flex:none}
+.mycol{display:flex;flex-direction:column;align-items:center;gap:4px;flex:none}
+.myhand{font-size:13px;color:var(--muted);white-space:nowrap;line-height:1.2;max-width:150px;overflow:hidden;text-overflow:ellipsis}
+.myhand b{color:var(--brass);font-weight:800}
+.myhand.off{opacity:.6}
 .rack{max-width:460px;width:100%;margin-inline:auto}
 .me-strip .av{width:46px;height:46px;flex:none;font-size:16px}
 .me-strip .who{flex:1;min-width:0}

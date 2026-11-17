@@ -152,6 +152,10 @@ function render(){
   $('photoChange').hidden=!seated; $('leaveBtn').hidden=!seated;
   renderRanking(s);
   if(isOwner&&!$('menuBox').hidden) renderOwnerPlayers();
+  queueMicrotask(()=>{ // keep "Masz: …" up to date as the flop, turn and river turn over (without rebuilding the bet panel)
+    const mh=document.querySelector('#controls .myhand'), hh=viewState().hand;
+    if(mh&&hh){const n=myHandHtml(hh); if(n&&mh.outerHTML!==n) mh.outerHTML=n}
+  });
   $('join').hidden = seated || watching || !(serverOk||demo) || demo;
   $('fab').hidden = !online() || chatOpen;
   if(!$('join').hidden){ $('joinBtn').disabled = isMember && s.players.length>=MAXP; }
@@ -660,7 +664,7 @@ function renderBar(s){
     const strip=`<div class="me-strip">
         <div class="av mine" data-photo="1" title="Zmień zdjęcie">${avatarHtml(meP)}</div>
         <div class="who"><b>${esc(meP.name)}</b>${moneyHtml(meP)}</div>
-        ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycards">${h.hole[me].map((c,ci)=>{const dd=dealDelay(me,ci),w=dd===null?-999:dd+480;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>`:''}
+        ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycol"><div class="mycards">${h.hole[me].map((c,ci)=>{const dd=dealDelay(me,ci),w=dd===null?-999:dd+480;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>${myHandHtml(h)}</div>`:''}
         ${myTurn?`<button class="btn primary postaw" data-a="bet" type="button">Postaw</button>`:''}
         <div class="stackv">${meP.chips}<small>żetonów</small></div>
       </div>`;
@@ -897,6 +901,19 @@ $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pe
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};
 $('nameInput').oninput=e=>{if(!pendingPhoto)$('photoPreview').textContent=initials(e.target.value)};
 // the owner typed their PIN as the table code: switch on owner mode right away
+// what I have right now with the cards on the table (only I see it: it is worked out on my phone from my own cards)
+let myHandTimer=null;
+function visibleBoard(h){
+  const BA=boardAnim&&boardAnim.no===h.no?boardAnim:null, now=Date.now();
+  return (h.board||[]).filter((c,i)=>!(BA&&BA.cards[i]&&now<BA.cards[i].flipAt));
+}
+function myHandHtml(h){
+  const mine=h.hole&&h.hole[me]; if(!mine||mine.length<2||mine.includes('back')) return '';
+  const dd=dealDelay(me,1);
+  if(dd!==null&&dd>-480){ if(!myHandTimer) myHandTimer=setTimeout(()=>{myHandTimer=null;lastBarKey='';render()},dd+520); return '<div class="myhand">&nbsp;</div>'; }
+  const label=handLabel(mine.concat(visibleBoard(h)));
+  return `<div class="myhand${h.st[me].folded?' off':''}" title="Twój najlepszy układ z kartami na stole">${h.st[me].folded?'Pas · miałeś: ':'Masz: '}<b>${esc(label)}</b></div>`;
+}
 // who I am at the table: my account (one per full name), the same on every phone
 function setMe(id){ if(!id) return; if(demo&&demoSaved) demoSaved.me=id; else { if(me!==id){myHole=null;lastBarKey=''} me=id; } }
 async function becomeOwner(pin){

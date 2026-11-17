@@ -25,7 +25,7 @@ function eval5(cs){
   else if(flush){cat=5;tb=r} else if(top){cat=4;tb=[top]} else if(c[0]===3){cat=3;tb=g}
   else if(c[0]===2&&c[1]===2){cat=2;tb=g} else if(c[0]===2){cat=1;tb=g} else {cat=0;tb=r}
   let score=cat; for(let i=0;i<5;i++) score=score*15+(tb[i]||0);
-  return {score,cat,top};
+  return {score,cat,top,g,r};
 }
 function best7(cards){
   let best=null; const n=cards.length;
@@ -34,6 +34,31 @@ function best7(cards){
   }
   best.name = best.cat===8&&best.top===14 ? 'Poker królewski' : CAT[best.cat];
   return best;
+}
+// what a player has right now, in words ("Para asów", "Strit do damy"); works from 2 cards (before the flop) to 7
+const R_GEN={2:'dwójek',3:'trójek',4:'czwórek',5:'piątek',6:'szóstek',7:'siódemek',8:'ósemek',9:'dziewiątek',10:'dziesiątek',11:'waletów',12:'dam',13:'króli',14:'asów'};
+const R_NOM={2:'dwójki',3:'trójki',4:'czwórki',5:'piątki',6:'szóstki',7:'siódemki',8:'ósemki',9:'dziewiątki',10:'dziesiątki',11:'walety',12:'damy',13:'króle',14:'asy'};
+const R_ONE={2:'dwójka',3:'trójka',4:'czwórka',5:'piątka',6:'szóstka',7:'siódemka',8:'ósemka',9:'dziewiątka',10:'dziesiątka',11:'walet',12:'dama',13:'król',14:'as'};
+const R_TO={5:'piątki',6:'szóstki',7:'siódemki',8:'ósemki',9:'dziewiątki',10:'dziesiątki',11:'waleta',12:'damy',13:'króla',14:'asa'};
+function handLabel(cards){
+  cards=(cards||[]).filter(Boolean); if(!cards.length) return '';
+  if(cards.length<5){
+    const r=cards.map(rv).sort((a,b)=>b-a), cnt={}; r.forEach(x=>cnt[x]=(cnt[x]||0)+1);
+    const pair=Object.keys(cnt).map(Number).filter(x=>cnt[x]>=2).sort((a,b)=>b-a)[0];
+    return pair?'Para '+R_GEN[pair]:'Wysoka karta: '+R_ONE[r[0]];
+  }
+  const b=best7(cards), g=b.g;
+  switch(b.cat){
+    case 8: return b.top===14?'Poker królewski':'Poker do '+R_TO[b.top];
+    case 7: return 'Kareta '+R_GEN[g[0]];
+    case 6: return `Full: ${R_NOM[g[0]]} na ${R_GEN[g[1]]}`;
+    case 5: return 'Kolor do '+R_TO[b.r[0]];
+    case 4: return 'Strit do '+R_TO[b.top];
+    case 3: return 'Trójka: '+R_NOM[g[0]];
+    case 2: return `Dwie pary: ${R_NOM[g[0]]} i ${R_NOM[g[1]]}`;
+    case 1: return 'Para '+R_GEN[g[0]];
+    default: return 'Wysoka karta: '+R_ONE[b.r[0]];
+  }
 }
 function newState(){return {v:VERSION,sb:5,bb:10,players:[],hand:null,dealerId:null,handNo:0,log:[]}}
 function migrate(s){
@@ -317,4 +342,4 @@ function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został 
 export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
   freshDeck,rnd,shuffle,eval5,best7,newState,migrate,P,nm,addLog,nextIn,commit,handActive,breakdown,
   startHand,drawCard,dealStreet,cardTxt,statRow,recordHand,revealAll,proceed,act,winAll,showdown,foldOut,
-  settle,canRaise,joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
+  handLabel,settle,canRaise,joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
