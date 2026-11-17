@@ -167,6 +167,14 @@ function showdown(s){
   const h=s.hand, live=h.order.filter(id=>!h.st[id].folded), sc={}, names={};
   const five={};
   live.forEach(id=>{const r=best7(h.hole[id].concat(h.board));sc[id]=r.score;names[id]=r.name;five[id]=r.cards});
+  // like in a real game: the part of a bet nobody could match goes straight back to its owner (it is not "won")
+  const tots=h.order.map(id=>h.st[id].total).sort((x,y)=>y-x), topId=h.order.find(id=>h.st[id].total===tots[0]);
+  h.refund=null;
+  if(tots.length>1&&tots[0]>tots[1]){
+    const back=tots[0]-tots[1]; h.st[topId].total-=back; if(typeof h.pot==='number') h.pot-=back;
+    const p=P(s,topId); if(p) p.chips+=back; h.refund={id:topId,amount:back};
+    addLog(s,`${nm(s,topId)}: zwrot ${back} (nikt nie mógł tego sprawdzić)`);
+  }
   const n=h.order.length, di=h.order.indexOf(h.dealer);
   const pos=id=>((h.order.indexOf(id)-di-1)%n+n)%n;
   const levels=[...new Set(h.order.map(id=>h.st[id].total).filter(t=>t>0))].sort((a,b)=>a-b);
@@ -183,7 +191,7 @@ function showdown(s){
   if(carry){const top=Math.max(...live.map(id=>sc[id]));const w=live.find(id=>sc[id]===top);won[w]=(won[w]||0)+carry}
   const winners=Object.entries(won).map(([id,amount])=>{const p=P(s,id);if(p)p.chips+=amount;return {id,amount,hand:names[id]}});
   const best={}; winners.forEach(w=>best[w.id]=five[w.id]);
-  h.result={showdown:true,winners,hands:names,best,at:h.clock||Date.now()}; h.stage='showdown'; h.toAct=null;
+  h.result={showdown:true,winners,hands:names,best,refund:h.refund,at:h.clock||Date.now()}; h.stage='showdown'; h.toAct=null;
   winners.forEach(w=>addLog(s,`${nm(s,w.id)} wygrywa ${w.amount} · ${w.hand}`));
   revealAll(s);
 }

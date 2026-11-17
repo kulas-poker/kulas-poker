@@ -43,5 +43,32 @@ for (let g = 0; g < 3000; g++) {
   ok(sum(s.ranking) === 0 && sum(s.game) === 0, 'rankings balance');
   s.players.forEach(p => { const r = s.game[p.id]; ok((r ? r.won - r.lost : 0) === p.chips - p.buyins * L.START, 'current game = chips'); });
 }
+// side pots: all-ins with different stacks, checked against an independent calculation
+{
+  let sp = 0;
+  const run = (stacks, foldIdx = -1) => {
+    const s = L.newState(), ids = stacks.map((_, i) => 'p' + i); let t = 1e6;
+    ids.forEach((id, i) => { L.joinPlayer(s, id, 'Gracz ' + i); L.P(s, id).chips = stacks[i]; });
+    L.dealHand(s, t); const h = s.hand;
+    for (let g = 0; !h.result && g < 50; g++) { const id = h.toAct; if (ids.indexOf(id) === foldIdx) L.act(s, id, 'fold', 0, t += 10); else L.act(s, id, 'allin', 0, t += 10) || L.act(s, id, 'call', 0, t) || L.act(s, id, 'check', 0, t); }
+    ok(!!h.result, 'all-in hand finishes');
+    const total = ids.reduce((a, id) => a + L.P(s, id).chips, 0); ok(total === stacks.reduce((a, b) => a + b, 0), 'side pots: no chips lost or created');
+    const sorted = stacks.slice().sort((a, b) => b - a), top = ids[stacks.indexOf(sorted[0])];
+    if (sorted[0] > sorted[1]) ok(h.result.refund && h.result.refund.id === top && h.result.refund.amount === sorted[0] - sorted[1], 'uncalled part goes back to its owner');
+    if (!h.result.showdown) return;
+    const live = ids.filter(id => !h.st[id].folded), sc = Object.fromEntries(live.map(id => [id, L.best7(h.hole[id].concat(h.board)).score]));
+    const tot = Object.fromEntries(ids.map(id => [id, h.st[id].total])), exp = {}; let prev = 0;
+    for (const lvl of [...new Set(Object.values(tot))].filter(x => x > 0).sort((a, b) => a - b)) {
+      let pot = 0; ids.forEach(id => pot += Math.max(0, Math.min(tot[id], lvl) - prev)); prev = lvl;
+      const el = live.filter(id => tot[id] >= lvl), top2 = Math.max(...el.map(id => sc[id])), ws = el.filter(id => sc[id] === top2);
+      ws.forEach(id => exp[id] = (exp[id] || 0) + pot / ws.length);
+    }
+    const got = {}; h.result.winners.forEach(w => got[w.id] = w.amount);
+    ok(ids.every(id => Math.abs((got[id] || 0) - (exp[id] || 0)) <= L.UNIT), 'side pots paid like in real poker ' + JSON.stringify({ stacks, got, exp }));
+    sp++;
+  };
+  for (let i = 0; i < 3000; i++) { run([6000, 1500]); run([1500, 6000]); run([6000, 1500, 3000]); run([6000, 1500, 3000, 800]); run([6000, 1500, 3000, 2000], 3); run([2000, 2000, 500]); }
+  console.log(`Pule boczne: ${sp} rozdań all-in sprawdzonych`);
+}
 console.log(`Zasady: ${hands} rozdań, ${checks - fails}/${checks} sprawdzeń OK`);
 if (fails) process.exit(1);

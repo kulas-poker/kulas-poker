@@ -361,7 +361,7 @@ function renderTable(s){
     lastBoardLen=h.board.length;
     c+=`<div class="board">${slots}</div>`;
     if(h.result&&!rev){
-      c+=`<div class="banner">${h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> wygrywa ${w.amount}${w.hand?` · ${esc(w.hand)}`:''}`).join('<br>')}</div>`;
+      c+=`<div class="banner">${h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> wygrywa ${w.amount}${w.hand?` · ${esc(w.hand)}`:''}`).join('<br>')}${h.result.refund?`<small class="refund">${esc(nm(s,h.result.refund.id))}: zwrot ${h.result.refund.amount} (nikt nie mógł tego sprawdzić)</small>`:''}</div>`;
     } else c+=`<div class="pot">${potPileHtml(h.pot)}<div><div class="lbl">Pula</div>${h.pot}</div></div>`;
   } else {
     lastBoardLen=0;
@@ -549,6 +549,7 @@ function onStateChange(prev,next){
   // hand finished: pot goes to the winners
   if(!ph.result&&nh.result){
     nh.result.winners.forEach((w,i)=>{const p=pos(w.id); if(p) flyChips(CENTER,{x:p.x,y:p.y},w.amount,wait+700+i*150)});
+    if(nh.result.refund){const p=pos(nh.result.refund.id); if(p) flyChips(CENTER,{x:p.x,y:p.y},nh.result.refund.amount,wait+300)}
     const iWon=nh.result.winners.some(w=>w.id===me), iPlayed=!!nh.st[me];
     setTimeout(()=>{iWon?SFX.win():(iPlayed?SFX.lose():SFX.chip(3))},wait+650);
   }
