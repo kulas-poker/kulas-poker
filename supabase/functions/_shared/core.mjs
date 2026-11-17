@@ -32,7 +32,7 @@ export function splitState(full) {
   return { pub, secret };
 }
 
-const ADMIN_ACTIONS = new Set(['blinds', 'reset', 'resetRanking']);
+const ADMIN_ACTIONS = new Set(['blinds', 'reset', 'resetRanking', 'kick']);
 
 // Returns {ok, error?, state?, secret?, holes?} where holes = {handNo, cards:{id:[c,c]}} when a new hand was dealt.
 export function handleAction({ publicState, secret, uid, action, args = {}, isAdmin = false, now = Date.now() }) {
@@ -41,7 +41,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
   const s = mergeState(publicState, secret);
   const prevNo = s.hand ? s.hand.no : null;
   const seated = !!G.P(s, uid);
-  const needSeat = !['join', 'timeout', 'blinds', 'reset', 'resetRanking'].includes(action);
+  const needSeat = !['join', 'timeout', 'blinds', 'reset', 'resetRanking', 'kick'].includes(action);
   if (needSeat && !seated) return { ok: false, error: 'Najpierw usiądź przy stole.' };
 
   let done = false;
@@ -66,6 +66,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
     case 'blinds': done = G.setBlinds(s, Number(args.sb), Number(args.bb)); break;
     case 'reset': archive = G.endGame(s, now); done = true; break;
     case 'resetRanking': done = G.resetRanking(s); break;
+    case 'kick': done = G.leavePlayer(s, String(args.id || ''), now); break; // owner removes a player who is gone
     default: return { ok: false, error: 'Nieznana akcja.' };
   }
   if (!done) return { ok: true, unchanged: true };

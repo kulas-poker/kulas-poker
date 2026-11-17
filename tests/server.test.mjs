@@ -176,5 +176,12 @@ for (let g = 0; g < 400; g++) {
   ok(S.pub.players.every(p => p.chips === 1000), 'everyone back to 1000');
 }
 
+// owner can remove a player who is gone; others cannot
+{
+  const S = server(); ['a', 'b', 'c'].forEach(id => S.call(id, 'join', { name: id }));
+  ok(!S.call('a', 'kick', { id: 'b' }).ok, 'players cannot remove others');
+  ok(S.call('x', 'kick', { id: 'b' }, true).ok && !G.P(S.pub, 'b'), 'owner removes a player');
+}
+
 console.log(`Serwer: ${checks - fails}/${checks} sprawdzeń OK`);
 if (fails) process.exit(1);

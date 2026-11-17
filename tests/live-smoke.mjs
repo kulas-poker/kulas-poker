@@ -39,6 +39,54 @@ if (!authErr) {
   const pinAsCode = await call('enter', { code: process.env.ADMIN_PIN });
   ok('PIN właściciela działa też jako kod stołu', pinAsCode && pinAsCode.ok === true && pinAsCode.admin === true, JSON.stringify(pinAsCode));
 }
+// a whole hand on the hidden test table: real moves, real cards, real save and game history
+async function tester(name) {
+  const c = createClient(cfg.url, cfg.anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await c.auth.signInAnonymously(); if (error) throw error;
+  const send = async (action, args = {}, pin) => {
+    const r = await c.functions.invoke('game', { body: { action, args, pin, table: 'selftest' } });
+    if (r.error) { try { return await r.error.context.json(); } catch { return { ok: false, error: String(r.error.message) }; } }
+    return r.data;
+  };
+  return { c, uid: data.user.id, send, name };
+}
+try {
+  const A = await tester('Test A'), B = await tester('Test B');
+  const PIN = process.env.ADMIN_PIN;
+  const ja = await A.send('join', { name: 'Robot A', code: process.env.TABLE_CODE });
+  const jb = await B.send('join', { name: 'Robot B', code: process.env.TABLE_CODE });
+  ok('stolik testowy: dwóch graczy siada', ja.ok && jb.ok, JSON.stringify([ja, jb]));
+  // clean start: remove robots left over from an earlier run, end any earlier test game
+  const before = (await A.c.from('games').select('state').eq('id', 'selftest').maybeSingle()).data?.state;
+  for (const p of (before?.players || [])) if (p.id !== A.uid && p.id !== B.uid) await A.send('kick', { id: p.id }, PIN);
+  await A.send('reset', {}, PIN);
+  const d = await A.send('deal');
+  ok('stolik testowy: rozdanie kart (zapis ruchu na serwerze)', d.ok, JSON.stringify(d));
+  const read = async who => (await who.c.from('games').select('state').eq('id', 'selftest').maybeSingle()).data?.state;
+  const st0 = await read(A);
+  const ca = (await A.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
+  const cb = (await B.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
+  ok('każdy dostaje tylko swoje 2 karty', ca.length === 1 && cb.length === 1 && ca[0].player_id === A.uid && cb[0].player_id === B.uid && ca[0].cards.length === 2, `${ca.length}/${cb.length}`);
+  ok('stan stołu nie zawiera ukrytych kart', st0 && st0.hand && !st0.hand.hole && !JSON.stringify(st0).includes(`"${ca[0]?.cards?.[0]}"`));
+  let st = st0, g = 0;
+  while (st && st.hand && !st.hand.result && g++ < 40) {
+    const who = st.hand.toAct === A.uid ? A : B, me = st.hand.st[who.uid];
+    const r = await who.send('act', { type: st.hand.currentBet - me.bet > 0 ? 'call' : 'check' });
+    if (!r.ok) break;
+    st = await read(A);
+  }
+  ok('rozdanie zagrane do końca na prawdziwym serwerze', !!(st && st.hand && st.hand.result), st?.hand?.stage);
+  ok('żetony się zgadzają', st && st.players.reduce((a, p) => a + p.chips, 0) === 2000);
+  const end = await A.send('reset', {}, PIN);
+  ok('zakończenie gry', end.ok, JSON.stringify(end));
+  const h = await A.c.from('game_history').select('*').eq('table_id', 'selftest').order('id', { ascending: false }).limit(1);
+  const rec = h.data && h.data[0];
+  ok('gra zapisana w historii (data, gracze, wynik)', !!rec && rec.hands === 1 && rec.players.length === 2 && rec.players.reduce((a, p) => a + p.net, 0) === 0 && Date.parse(rec.ended_at) > Date.now() - 600000, JSON.stringify(rec)?.slice(0, 200));
+  const main = await A.c.from('game_history').select('id').eq('table_id', 'main').limit(1);
+  ok('historia prawdziwego stołu osobno od testowej', !main.error);
+  await A.send('leave'); await B.send('leave');
+} catch (e) { ok('stolik testowy', false, String(e && e.message || e)); }
+
 const page = await fetch(process.env.PAGE_URL).then(r => r.text()).catch(e => String(e));
 ok('strona aplikacji się otwiera', page.includes('Kulas Poker'), process.env.PAGE_URL);
 console.log(results.join('\n')); console.log(`\nNA ŻYWO: ${results.length - failed}/${results.length} OK`);

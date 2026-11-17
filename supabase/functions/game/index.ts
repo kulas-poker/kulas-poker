@@ -2,7 +2,8 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
 import { handleAction } from '../_shared/core.mjs';
 
-const TABLE = 'main';
+// 'main' is the real table; 'selftest' is a hidden table the publishing robot plays on to check the server
+const TABLES = new Set(['main', 'selftest']);
 const cors = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -32,6 +33,7 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = String(body.action || '');
     const args = body.args || {};
+    const TABLE = TABLES.has(body.table) ? String(body.table) : 'main';
     const isAdmin = !!ADMIN_PIN && String(body.pin || '').trim() === ADMIN_PIN;
 
     // the owner gets the table code back, so they can always look it up in the app
