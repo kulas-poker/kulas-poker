@@ -7,6 +7,7 @@ export function createBackend(cfg) {
   const sb = createClient(cfg.url, cfg.anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
   let uid = null;
   let pin = null;
+  let tableCode = null;
   try { pin = localStorage.getItem('kp-admin-pin'); } catch (_) {}
 
   const toMsg = r => ({ uid: r.uid, name: r.name, kind: r.kind, text: r.text, sticker: r.sticker, gif: r.gif, at: Date.parse(r.at) });
@@ -39,14 +40,16 @@ export function createBackend(cfg) {
       if (!pin) return false;
       const r = await call('adminCheck', {}, pin).catch(() => ({ ok: false }));
       if (!r.ok) { pin = null; try { localStorage.removeItem('kp-admin-pin'); } catch (_) {} }
+      else tableCode = r.tableCode || null;
       return !!r.ok;
     },
     async adminLogin(p) {
       const r = await call('adminCheck', {}, p).catch(() => ({ ok: false }));
-      if (r.ok) { pin = p; try { localStorage.setItem('kp-admin-pin', p); } catch (_) {} }
+      if (r.ok) { pin = p; tableCode = r.tableCode || null; try { localStorage.setItem('kp-admin-pin', p); } catch (_) {} }
       return !!r.ok;
     },
-    adminLogout() { pin = null; try { localStorage.removeItem('kp-admin-pin'); } catch (_) {} },
+    adminLogout() { pin = null; tableCode = null; try { localStorage.removeItem('kp-admin-pin'); } catch (_) {} },
+    tableCode: () => tableCode,
     async myCards() {
       const { data } = await sb.from('hole_cards').select('hand_no, cards').eq('table_id', TABLE).eq('player_id', uid).maybeSingle();
       return data || null;

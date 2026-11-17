@@ -132,6 +132,9 @@ const D = await player('Właściciel');
 await D.fill('#nameInput', 'Paweł Właściciel'); await D.fill('#codeInput', '1234'); await D.click('#joinBtn'); await sleep(500);
 if (await D.isVisible('#tutNo')) await D.click('#tutNo');
 ok('PIN właściciela działa jako kod stołu i włącza tryb właściciela', await ev(D, `isMember && !!mySeat() && isOwner && !$('ownerTools').hidden`));
+await D.click('#btnMenu'); await sleep(200);
+ok('właściciel widzi kod stołu w Menu', await ev(D, `!$('ownerCodeBox').hidden && $('ownerCode').textContent==='TEST'`));
+ok('zwykły gracz nie widzi kodu stołu', await ev(B, `$('ownerCodeBox').hidden`));
 ok('zwykły kod stołu nie daje trybu właściciela', (await ev(B, 'isOwner')) === false);
 ok('brak błędów JavaScript', errs.length === 0, errs.slice(0, 3).join(' | '));
 

@@ -15,7 +15,7 @@ function api(route, body, q) {
   if (route === 'send') {
     const { uid, action, args = {}, pin } = body;
     const isAdmin = String(pin || '') === ADMIN_PIN;
-    if (action === 'adminCheck') return { ok: isAdmin };
+    if (action === 'adminCheck') return isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false };
     if (action === 'enter' || action === 'join') {
       const typed = String(args.code || '').trim(); var viaPin = typed === ADMIN_PIN;
       if (!viaPin && typed.toUpperCase() !== TABLE_CODE) return { ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' };

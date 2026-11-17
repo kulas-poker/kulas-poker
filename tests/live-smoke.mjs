@@ -33,7 +33,7 @@ if (!authErr) {
   const badPin = await call('adminCheck', {}, '000000-zly');
   ok('zły PIN właściciela odrzucony', badPin && badPin.ok === false);
   const goodPin = await call('adminCheck', {}, process.env.ADMIN_PIN);
-  ok('PIN właściciela działa', goodPin && goodPin.ok === true);
+  ok('PIN właściciela działa i podaje kod stołu', goodPin && goodPin.ok === true && goodPin.tableCode === String(process.env.TABLE_CODE).trim().toUpperCase());
   const pinAsCode = await call('enter', { code: process.env.ADMIN_PIN });
   ok('PIN właściciela działa też jako kod stołu', pinAsCode && pinAsCode.ok === true && pinAsCode.admin === true, JSON.stringify(pinAsCode));
 }

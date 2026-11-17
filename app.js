@@ -840,7 +840,14 @@ function startLive(){
 }
 function setOwnerUI(){
   $('ownerTools').hidden=!isOwner; $('ownerLogin').hidden=isOwner||demo; $('ownerLogout').hidden=!isOwner||demo;
+  const code=isOwner&&!demo&&KP&&KP.tableCode?KP.tableCode():null;
+  $('ownerCodeBox').hidden=!code; $('ownerCode').textContent=code||'—';
 }
+$('copyCode').onclick=async()=>{
+  const code=$('ownerCode').textContent;
+  try{await navigator.clipboard.writeText(code);toast('Skopiowano kod stołu.')}
+  catch(_){const r=document.createRange();r.selectNodeContents($('ownerCode'));const s=getSelection();s.removeAllRanges();s.addRange(r);toast('Zaznaczyłem kod: skopiuj go.')}
+};
 async function boot(){
   try{const n=localStorage.getItem('ns-name');if(n){$('nameInput').value=n;$('photoPreview').textContent=initials(n)}}catch(_){}
   try{const c=localStorage.getItem('ns-code');if(c)$('codeInput').value=c}catch(_){}

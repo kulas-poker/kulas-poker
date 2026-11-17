@@ -34,7 +34,8 @@ Deno.serve(async (req) => {
     const args = body.args || {};
     const isAdmin = !!ADMIN_PIN && String(body.pin || '').trim() === ADMIN_PIN;
 
-    if (action === 'adminCheck') return json({ ok: isAdmin, error: isAdmin ? undefined : 'Zły PIN.' });
+    // the owner gets the table code back, so they can always look it up in the app
+    if (action === 'adminCheck') return json(isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false, error: 'Zły PIN.' });
 
     let viaPin = false;
     if (action === 'join' || action === 'enter') {
