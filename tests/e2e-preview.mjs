@@ -22,12 +22,18 @@ async function run(width,height,label){
   // my turn at flop in demo
   ok(pre+'mój ruch po starcie podglądu',await ev('viewState().hand.toAct===me'));
   ok(pre+'zegar przy graczu z ruchem',await ev(`!!document.querySelector('.seat.turn #seatClock')`));
+  ok(pre+'stosy żetonów przy każdym graczu z żetonami',await ev(`viewState().players.filter(p=>p.chips>0).every(p=>!!document.querySelector('#seats .pstack[data-for="'+p.id+'"] .d'))`));
+  ok(pre+'dziennik: czyja kolej i ostatni ruch',await ev(`$('feed').textContent.includes('Twoja kolej')&&$('feed').textContent.includes((viewState().log||[]).slice(-1)[0].slice(0,12))`));
+  ok(pre+'stosy bez śmieciowych znaków',await ev(`!$('seats').textContent.includes('">')`));
   await p.click('.tok.d25');await p.click('.tok.d25');
+  ok(pre+'stawiane żetony widać na stole z przyciskiem Postaw',await ev(`!$('pending').hidden&&$('pending').textContent.includes('+50')&&!!$('pending').querySelector('[data-a="bet"]')`));
+  if(width>=600)   ok(pre+'okienko stawiania nie zasłania puli',await ev(`(()=>{const a=$('pending').getBoundingClientRect(),b=document.querySelector('#center .pot');if(!b)return true;const c=b.getBoundingClientRect();return a.right<=c.left||a.left>=c.right||a.bottom<=c.top||a.top>=c.bottom})()`));
   ok(pre+'żetony dodają się do kwoty',await ev(`$('betInput').value==='50'`),await ev(`$('betInput').value`));
   await p.click('[data-clear]');ok(pre+'Wyczyść zeruje kwotę',await ev(`$('betInput').value===''&&betAmt===0`));
   await p.fill('#betInput','7');await p.click('.postaw');await p.waitForTimeout(100);
   ok(pre+'zła kwota nie przechodzi',await ev('viewState().hand.toAct===me'));
-  await p.click('[data-clear]');await p.click('.tok.d50');await p.click('.tok.d10');await p.click('.postaw');await p.waitForTimeout(150);
+  await p.click('#pending .pend-x');ok(pre+'✕ na stole czyści stawkę',await ev(`$('pending').hidden&&betAmt===0`));
+  await p.click('.tok.d50');await p.click('.tok.d10');await p.click('#pending .pend-go');await p.waitForTimeout(150);
   ok(pre+'POSTAW 60 = podbicie do 60',await ev(`viewState().hand.currentBet===60&&viewState().hand.st[me].bet===60`),await ev('JSON.stringify(viewState().hand.st[me])'));
   let r=await botsUntilMe();
   if(r==='me'){await p.click('[data-a="call"],[data-a="check"]');await p.waitForTimeout(100)}
@@ -43,6 +49,10 @@ async function run(width,height,label){
   await p.click('[data-a="deal"]');await p.waitForTimeout(250);
   ok(pre+'nowe rozdanie startuje',await ev(`viewState().hand.no===${no}+1`));
   ok(pre+'animacja tasowania widoczna',await ev(`!!document.querySelector('.shuffler')`));
+  ok(pre+'rozdawanie od gracza po lewej rozdającego, po 1 karcie w 2 kółkach',await ev(`(()=>{const h=viewState().hand,n=h.order.length,seq=dealPlan.seq;
+    if(seq[0]!==h.order[(h.order.indexOf(h.dealer)+1)%n]) return false;
+    const t=[];for(let c=0;c<2;c++)seq.forEach(id=>t.push(dealDelay(id,c)));return t.every((v,i)=>i===0||v>t[i-1])})()`));
+  ok(pre+'karty lecą na stół w trakcie rozdawania',await ev(`document.querySelectorAll('#seats .card.fly').length>=4`));
   await p.waitForTimeout(2300);
   ok(pre+'po tasowaniu moje 2 karty w panelu',await ev(`document.querySelectorAll('.mycards .card').length===2`));
   ok(pre+'karty bez duplikatów',await ev(`(()=>{const h=viewState().hand;const a=h.board.concat(...Object.values(h.hole));return new Set(a).size===a.length})()`));

@@ -28,7 +28,7 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const TAB=Math.random().toString(36).slice(2,8);
 let KP=null,me=null,isOwner=false,myHole=null,serverOk=false,isMember=false,live=false;
-const SHUF_MS=1900; let shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
+const SHUF_MS=1900, DEAL_STEP=230; let dealPlan=null, feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
 let messages=[],chatOpen=false,pickerTab=null,gifLib=[],lastSeen=0,firstChatLoad=true;
 try{lastSeen=+localStorage.getItem('ns-seen')||0}catch(_){}
 
@@ -44,6 +44,24 @@ function chipFace(d){return `<span class="holo"></span><i class="st s1">♠</i><
 function stacksHtml(amount,maxCols=3,maxH=5,cls=''){
   if(!amount) return '';
   return `<span class="stacks ${cls}" aria-hidden="true">${breakdown(amount).slice(0,maxCols).map(([d,c])=>`<span class="stk">${('<i class="d d'+d+'"></i>').repeat(Math.min(c,maxH))}</span>`).join('')}</span>`;
+}
+// a player's chips drawn as casino stacks: more chips, taller stacks; mixed denominations
+function playerStackHtml(chips){
+  if(!chips) return '';
+  const parts=[]; let rem=chips;
+  for(const d of DENOMS){let c=Math.floor(rem/d); if(d!==5&&c>1) c=Math.max(1,Math.ceil(c*0.6)); for(let i=0;i<c;i++) parts.push(d); rem-=c*d;}
+  const n=Math.max(1,Math.min(15,Math.ceil(chips/100)));
+  const pick=parts.length<=n?parts:Array.from({length:n},(_,i)=>parts[Math.floor(i*parts.length/n)]);
+  const cols=[]; pick.forEach(d=>{const c=cols.find(x=>x.d===d); if(c) c.n++; else cols.push({d,n:1})});
+  while(cols.length>3){const a=cols.pop(); cols[cols.length-1].mix=(cols[cols.length-1].mix||[]).concat(Array(a.n).fill(a.d)).concat(a.mix||[])}
+  return `<span class="stacks" aria-hidden="true">${cols.map(c=>`<span class="stk">${('<i class="d d'+c.d+'"></i>').repeat(c.n)}${(c.mix||[]).map(d=>'<i class="d d'+d+'"></i>').join('')}</span>`).join('')}</span>`;
+}
+// dealing: one card at a time, starting left of the dealer, first round then second round
+function dealDelay(id,ci){
+  const h=state&&state.hand;
+  if(!dealPlan||!h||dealPlan.no!==h.no) return null;
+  const k=dealPlan.seq.indexOf(id); if(k<0) return null;
+  return dealPlan.start+(ci*dealPlan.seq.length+k)*DEAL_STEP-Date.now();
 }
 function avatarHtml(p,extra=''){
   const img=photos[p.id];
@@ -100,10 +118,11 @@ function render(){
   const curSb=handActive(s)?h.sbAmt:s.sb, curBb=handActive(s)?h.bbAmt:s.bb;
   const pending=handActive(s)&&(s.sb!==h.sbAmt||s.bb!==h.bbAmt);
   const pill=$('blindsPill');
-  pill.innerHTML=`Ciemne ${curSb}/${curBb}${pending?` <em>→ ${s.sb}/${s.bb}</em>`:''}`;
+  pill.innerHTML=`<span class="lbl">Ciemne </span>${curSb}/${curBb}${pending?` <em>→ ${s.sb}/${s.bb}</em>`:''}`;
   pill.classList.toggle('owner',isOwner);
   $('chatMembers').textContent = s.players.length ? s.players.map(p=>p.name.split(' ')[0]).join(', ') : 'czat przy stole';
   renderTable(s); renderBar(s); renderLevels(s);
+  renderFeed(s);
   scheduleHl(h);
   renderLastHand(s);
   $('logList').innerHTML=(s.log||[]).slice().reverse().map(l=>`<div>${esc(l)}</div>`).join('')||'<div>Jeszcze nic się nie wydarzyło.</div>';
@@ -145,6 +164,21 @@ function renderLastHand(s){
   }).join('');
   box.innerHTML=`<h3>Ostatnie rozdanie #${L.no}</h3>
     <div class="board">${L.board.length?L.board.map(c=>cardHtml(c,'sm'+hlCls(hs,c))).join(''):'<span class="lh-empty">Karty wspólne nie zostały odkryte.</span>'}</div>${rows}`;
+}
+// always-visible running account of the hand: whose turn it is and who did what
+function renderFeed(s){
+  const box=$('feed'); if(!box) return;
+  const h=s.hand; let head;
+  if(!online()) head='Łączenie ze stołem…';
+  else if(h&&handActive(s)&&h.toAct){
+    const left=Math.max(0,SKIP_MS-(Date.now()-(h.turnAt||0)));
+    head=(h.toAct===me?'<b class="you">Twoja kolej</b>':`Kolej: <b>${esc(nm(s,h.toAct))}</b>`)+` <span class="fclock" id="feedClock">${fmtClock(left)}</span>`;
+  } else if(h&&h.result) head='Rozdanie zakończone: '+h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> +${w.amount}`).join(', ');
+  else head=s.players.length<2?'Czekamy na graczy':'Czekamy na rozdanie';
+  const log=(s.log||[]).slice(-16).reverse();
+  const sig=(s.log||[]).length+'|'+(log[0]||'');
+  const fresh=sig!==lastFeedSig&&lastFeedSig!==''; lastFeedSig=sig;
+  box.innerHTML=`<div class="fhead">${head}${log[0]&&!log[0].startsWith('—')?`<span class="flast"> · ${esc(log[0])}</span>`:''}</div><ol class="flist">${log.map((l,i)=>`<li class="${l.startsWith('—')?'sep':''}${i===0&&fresh?' fresh':''}">${esc(l.replace(/^— /,''))}</li>`).join('')||'<li class="sep">Tu pojawią się ruchy graczy.</li>'}</ol>`;
 }
 function renderLevels(s){
   $('levels').innerHTML=LEVELS.map(([a,b])=>`<button class="btn ${s.sb===a&&s.bb===b?'on':''}" data-level="${a},${b}" type="button">${a} / ${b}</button>`).join('');
@@ -222,7 +256,6 @@ function renderTable(s){
   const L=layout(s), W=L.W, H=L.H;
   let html='';
   const winIds=new Set(h&&h.result?h.result.winners.map(w=>w.id):[]);
-  const dealing=h&&dealAnimNo===h.no; if(dealing) dealAnimNo=-1;
   players.forEach((p,i)=>{
     const {x,y,bx,by}=L.pos[p.id];
     const st=h&&h.st?h.st[p.id]:null, isMe=p.id===me;
@@ -239,27 +272,32 @@ function renderTable(s){
     if(tag && !tag.startsWith('<')) tag=`<span class="tag">${tag}</span>`;
     if(shown && !(h.result&&h.result.showdown)) tag=`<span class="tag hand">pokazuje</span>`;
     let hole='';
-    const flyAttr=(ci)=>dealing?` fly" style="--fx:${((50-x)/100*W).toFixed(0)}px;--fy:${((50-y)/100*H).toFixed(0)}px;animation-delay:${SHUF_MS+(i*2+ci)*70}ms`:'';
+    const flyAttr=(ci)=>{const d=dealDelay(p.id,ci); return d!==null&&d>-520?` fly" style="--fx:${((50-x)/100*W).toFixed(0)}px;--fy:${((50-y)/100*H).toFixed(0)}px;animation-delay:${Math.round(d)}ms`:''};
     if(st && (!st.folded || shown)){
       const show = isMe || shown || (h.result&&h.result.showdown);
       const hs=show?hlCards(h):null;
       hole=`<div class="hole">${h.hole[p.id].map((c,ci)=>cardHtml(show?c:'back',(isMe?'md':'sm')+flyAttr(ci)+hlCls(hs,c))).join('')}</div>`;
     }
-    if(isMe) hole='';
+    if(isMe){ // my cards live in the panel; while dealing, show them landing at my seat
+      const d1=dealDelay(p.id,1);
+      hole = st&&d1!==null&&d1>-520 ? `<div class="hole">${[0,1].map(ci=>cardHtml('back','sm'+flyAttr(ci))).join('')}</div>` : '';
+    }
     const dealer=h&&h.dealer===p.id?'<span class="dealer" title="Rozdający">D</span>':'';
     const turnNow=h&&!h.result&&h.toAct===p.id;
     const ring=turnNow?'<span class="ring"></span>':'';
     const sclock=turnNow?`<span class="seat-clock" id="seatClock">${fmtClock(Math.max(0,SKIP_MS-(Date.now()-h.turnAt)))}</span>`:'';
-    html+=`<div class="${cls}" style="left:${x}%;top:${y}%">${sclock}
+    html+=`<div class="${cls}" data-id="${esc(p.id)}" style="left:${x}%;top:${y}%">${sclock}
       <div class="av ${isMe?'mine':''}" ${isMe?'data-photo="1" title="Zmień zdjęcie"':''}>${ring}${avatarHtml(p,dealer)}</div>
       <div class="plate"><div class="nm">${esc(p.name)}</div><div class="ch">${p.chips}</div>${moneyHtml(p)}${(p.buyins||1)>1?`<span class="rbs">🔄 dokupki: ${(p.buyins||1)-1}</span>`:''}${tag}</div>
       ${hole}
     </div>`;
+    if(p.chips>0) html+=`<div class="pstack" data-for="${esc(p.id)}" style="left:${x}%;top:${y}%">${playerStackHtml(p.chips)}</div>`;
     if(st&&st.bet>0){
-      html+=`<div class="bet" style="left:${bx}%;top:${by}%">${stacksHtml(st.bet,4,6)}${st.bet}</div>`;
+      html+=`<div class="bet ${isMe?'mine':''}" data-for="${esc(p.id)}" style="left:${bx}%;top:${by}%">${stacksHtml(st.bet,4,6)}<b>${st.bet}</b></div>`;
     }
   });
   $('seats').innerHTML=html;
+  placeFelt(L);
 
   let c='';
   if(h){
@@ -276,6 +314,57 @@ function renderTable(s){
     c+= s.players.length<2 ? `<div class="hint">Czekamy na graczy. Wyślij znajomym link do tej strony.</div>` : `<div class="hint">Gotowe do gry. Kliknij „Rozdaj karty”.</div>`;
   }
   $('center').innerHTML=c;
+  updatePending();
+}
+// put each player's chip stack, and their bet further in, on the felt between the seat and the middle
+function placeFelt(L){
+  const room=$('room'), R=room.getBoundingClientRect(); if(!R.width||!R.height) return;
+  const cx=R.width/2, cy=R.height/2, minFromCenter=Math.min(R.width,R.height)*0.2;
+  feltPos={};
+  document.querySelectorAll('#seats .seat[data-id]').forEach(seat=>{
+    const id=seat.dataset.id, av=seat.querySelector('.av'), a=av.getBoundingClientRect();
+    // the seat's area includes cards that stick out of it
+    const b=[seat,seat.querySelector('.hole')].filter(Boolean).map(e=>e.getBoundingClientRect()).reduce((u,r)=>({left:Math.min(u.left,r.left),top:Math.min(u.top,r.top),right:Math.max(u.right,r.right),bottom:Math.max(u.bottom,r.bottom)}));
+    b.width=b.right-b.left; b.height=b.bottom-b.top;
+    const px=a.left-R.left+a.width/2, py=a.top-R.top+a.height/2;
+    let dx=cx-px, dy=cy-py; const len=Math.hypot(dx,dy)||1; dx/=len; dy/=len;
+    // how far the seat (avatar + name plate) reaches towards the middle
+    const bx0=b.left-R.left, by0=b.top-R.top;
+    const reach=Math.max(0,Math.min(
+      dx>1e-3?(bx0+b.width-px)/dx:dx<-1e-3?(bx0-px)/dx:1e9,
+      dy>1e-3?(by0+b.height-py)/dy:dy<-1e-3?(by0-py)/dy:1e9));
+    const ext=el=>{if(!el)return 0;const r=el.getBoundingClientRect();return Math.abs(dx)*r.width/2+Math.abs(dy)*r.height/2};
+    const sel=s=>document.querySelector(`#seats ${s}[data-for="${CSS.escape(id)}"]`);
+    const stack=sel('.pstack'), bet=sel('.bet');
+    const limit=Math.max(0,len-minFromCenter);
+    const dS=Math.min(reach+6+ext(stack), limit);
+    const dB=Math.min(dS+ext(stack)+10+Math.max(ext(bet),22), limit+28);
+    const put=(el,d)=>{const X=(px+dx*d)/R.width*100, Y=(py+dy*d)/R.height*100; if(el){el.style.left=X+'%';el.style.top=Y+'%'} return {x:X,y:Y}};
+    put(stack,dS); const bp=put(bet,dB);
+    feltPos[id]={sx:(px+dx*dS)/R.width*100, sy:(py+dy*dS)/R.height*100, bx:bp.x, by:bp.y, ax:px/R.width*100, ay:py/R.height*100};
+  });
+}
+// chips I am about to bet are shown on the table, with a "Postaw" button next to them
+function updatePending(){
+  const el=$('pending'); if(!el) return;
+  const s=state?viewState():null, h=s&&s.hand;
+  const myTurn=!!(h&&handActive(s)&&h.toAct===me&&mySeat()&&!P(s,me).away);
+  const pos=feltPos[me];
+  if(!myTurn||!betAmt||!pos){el.hidden=true;$('room').classList.remove('pending-on');return}
+  const st=h.st[me];
+  el.innerHTML=`<div class="pend-chips">${stacksHtml(betAmt,4,8,'big')}</div>
+    <div class="pend-amt">+${betAmt}${st.bet?`<small>razem ${st.bet+betAmt}</small>`:''}</div>
+    <button class="btn primary pend-go" data-a="bet" type="button">Postaw</button>
+    <button class="pend-x" data-clear="1" type="button" aria-label="Wyczyść stawkę">✕</button>`;
+  el.hidden=false; $('room').classList.add('pending-on');
+  // next to my seat (left of my picture) so the pot stays visible; above it when there is no room
+  const room=$('room').getBoundingClientRect(), av=document.querySelector('#seats .seat.me .av');
+  const a=av?av.getBoundingClientRect():null, w=el.offsetWidth, hgt=el.offsetHeight;
+  if(a&&a.left-room.left-14>=w+6){
+    el.style.left=(a.left-room.left-14-w/2)/room.width*100+'%'; el.style.top=(a.top-room.top+a.height/2)/room.height*100+'%';
+  } else if(a){
+    el.style.left=(a.left-room.left+a.width/2)/room.width*100+'%'; el.style.top=(a.top-room.top-10-hgt/2)/room.height*100+'%';
+  } else { el.style.left=pos.bx+'%'; el.style.top=pos.by+'%'; }
 }
 
 // ---------- sound (synthesized, no files) ----------
@@ -303,7 +392,7 @@ function noise(dur,vol=.15,when=0,freq=2000,q=1){
 }
 const SFX={
   shuffle(){[0.12,0.92].forEach(o=>{for(let i=0;i<14;i++)noise(.04,.2,o+.28+i*.028,1800+Math.random()*1800,.8)});noise(.06,.25,1.72,900,.7)},
-  deal(n,base=.55){for(let i=0;i<n;i++)noise(.035,.16,base+i*.07,3500,1.2)},
+  deal(n,base=.55,step=.07){for(let i=0;i<n;i++)noise(.035,.16,base+i*step,3500,1.2)},
   chip(k=1){for(let i=0;i<k;i++){const w=i*.06+Math.random()*.02;tone(2500+Math.random()*700,.07,'triangle',.12,w);tone(3600+Math.random()*500,.05,'sine',.06,w+.01)}},
   check(){tone(160,.07,'sine',.35);tone(150,.07,'sine',.3,.12)},
   fold(){noise(.18,.12,0,900,.6)},
@@ -340,11 +429,19 @@ const CENTER={x:50,y:47};
 function onStateChange(prev,next){
   const ph=prev&&prev.hand, nh=next.hand;
   if(!nh) return;
-  const L=layout(next), pos=id=>L.pos[id];
+  const L=layout(next), pos=id=>{const p=L.pos[id]; const f=feltPos[id]; return p?(f?{x:f.ax,y:f.ay,bx:f.bx,by:f.by}:p):null};
   const sameHand=ph&&ph.no===nh.no;
   if(!sameHand){
-    if(!nh.result){dealAnimNo=nh.no;playShuffle();SFX.shuffle();SFX.deal(nh.order.length*2,SHUF_MS/1000+.1)}
-    if(nh.toAct===me) setTimeout(()=>SFX.turn(),SHUF_MS+900);
+    if(!nh.result){
+      const reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+      const di=nh.order.indexOf(nh.dealer), n=nh.order.length;
+      const seq=nh.order.map((_,i)=>nh.order[(di+1+i)%n]);
+      dealPlan={no:nh.no,start:Date.now()+(reduce?0:SHUF_MS),seq};
+      if(!reduce){playShuffle();SFX.shuffle();SFX.deal(n*2,SHUF_MS/1000+.25,DEAL_STEP/1000)}
+      const dealEnd=(reduce?0:SHUF_MS)+(2*n-1)*DEAL_STEP+520;
+      setTimeout(()=>{lastBarKey='';render()},dealEnd+40);
+      if(nh.toAct===me) setTimeout(()=>SFX.turn(),dealEnd+150);
+    }
     return;
   }
   // actions
@@ -384,6 +481,7 @@ function tickTimer(){
   const ring=document.querySelector('.seat.turn .ring');
   if(ring){ring.style.setProperty('--p',(left/SKIP_MS).toFixed(3));ring.style.setProperty('--rc',left<15000?'#e5534b':'var(--brass)')}
   const sc=$('seatClock'); if(sc){sc.textContent=fmtClock(left);sc.classList.toggle('low',left<15000)}
+  const fc=$('feedClock'); if(fc){fc.textContent=fmtClock(left);fc.classList.toggle('low',left<15000)}
   if(h.toAct===me){
     const sec=Math.ceil(left/1000);
     if(sec<=5&&sec>0&&sec!==lastTickSec){lastTickSec=sec;SFX.tick()}
@@ -400,6 +498,7 @@ function updateBetUI(){
   const i=$('betInput'); if(i&&document.activeElement!==i) i.value=betAmt||'';
   const mx=i?+i.dataset.max:0;
   document.querySelectorAll('.tok[data-add]').forEach(t=>t.disabled=betAmt+ +t.dataset.add>mx);
+  updatePending();
 }
 function renderBar(s){
   const h=s.hand, meP=mySeat()?P(s,me):null;
@@ -426,7 +525,7 @@ function renderBar(s){
     const strip=`<div class="me-strip">
         <div class="av mine" data-photo="1" title="Zmień zdjęcie">${avatarHtml(meP)}</div>
         <div class="who"><b>${esc(meP.name)}</b>${moneyHtml(meP)}</div>
-        ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycards">${h.hole[me].map((c,ci)=>{const w=shuffleUntil-Date.now()+ci*120;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>`:''}
+        ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycards">${h.hole[me].map((c,ci)=>{const dd=dealDelay(me,ci),w=dd===null?-999:dd+480;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>`:''}
         ${myTurn?`<button class="btn primary postaw" data-a="bet" type="button">Postaw</button>`:''}
         <div class="stackv">${meP.chips}<small>żetonów</small></div>
       </div>`;

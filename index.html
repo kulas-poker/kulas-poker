@@ -163,8 +163,98 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .tag{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .tag.hand{color:var(--win)}
 .hole{display:flex;gap:2px;position:absolute;top:-6px;left:calc(50% + 18px)}
-.seat.me .hole{position:static;margin-top:2px;gap:4px}
+
 .bet{position:absolute;transform:translate(-50%,-50%);z-index:2;display:flex;align-items:flex-end;gap:4px;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;color:var(--fg)}
+.bet b{background:rgba(6,14,24,.7);border-radius:6px;padding:1px 5px}
+.room.pending-on .bet.mine{opacity:0}
+/* each player's chips on the felt */
+.pstack{position:absolute;transform:translate(-50%,-50%);z-index:2;pointer-events:none;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
+.pstack .stacks{gap:3px}
+.pstack .d{width:20px;height:7px;margin-top:-3px}
+@media (max-width:560px){.pstack .d{width:14px;height:5px;margin-top:-2px}.pstack .stacks{gap:2px}}
+/* chips I am about to bet */
+.pending{position:absolute;transform:translate(-50%,-50%);z-index:7;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border-radius:14px;
+  background:rgba(6,14,24,.82);border:1.5px dashed var(--brass);box-shadow:0 0 0 3px rgba(217,181,108,.15),0 8px 20px rgba(0,0,0,.45);animation:pendin .2s ease-out}
+@keyframes pendin{from{transform:translate(-50%,-50%) scale(.85);opacity:0}}
+.pending .pend-chips{display:flex;align-items:flex-end}
+.pending .pend-amt{font:800 20px/1 var(--f-display);color:var(--brass);font-variant-numeric:tabular-nums;white-space:nowrap}
+.pending .pend-amt small{display:block;font:600 10px var(--f-body);color:var(--muted);margin-top:2px}
+.pending .pend-go{padding:10px 16px;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-radius:10px}
+.pending .pend-x{background:none;border:none;color:var(--muted);font-size:16px;padding:6px;border-radius:8px}
+.pending .pend-x:hover{color:var(--fg);background:var(--panel-2)}
+/* running account of the hand */
+.feed{flex:none;display:flex;flex-direction:column;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:6px 10px;font-size:12.5px;line-height:1.35;min-width:0}
+.feed .fhead{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.feed .fhead b{color:var(--fg)}
+.feed .fhead b.you{color:var(--brass);text-transform:uppercase;letter-spacing:.04em}
+.feed .fclock{font:700 13px var(--f-display);color:var(--brass);background:var(--bg);border-radius:6px;padding:0 6px;margin-left:4px;font-variant-numeric:tabular-nums}
+.feed .fclock.low{color:#ffd1cc;background:#5a1f1b}
+.feed .flist{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px;min-height:0}
+.feed .flist li{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--fg)}
+.feed .flist li.sep{color:var(--muted);font-size:11.5px}
+.feed .flist li.fresh{animation:fresh 1.6s ease-out}
+.feed .flast{color:var(--fg)}
+#btnLog .ico{display:none}
+@media (max-width:859px){.feed{padding:5px 10px}.feed .flist{display:none}}
+@media (min-width:860px){.feed .flast{display:none}}
+/* phone: one compact header row and a tighter player panel, so the table gets the room */
+@media (max-width:560px){
+  .seat{width:clamp(66px,19vw,96px);gap:2px}
+  .av{width:36px;height:36px;font-size:14px;border-width:2px}
+  .plate{padding:2px 5px;border-radius:7px}
+  .nm{font-size:10.5px}
+  .ch{font-size:12.5px}
+  .money{font-size:9.5px;gap:3px}
+  .money .dl{font-size:9px;padding:0 3px}
+  .rbs{font-size:8.5px!important;padding:0 4px!important}
+  .tag{font-size:8.5px}
+  .dealer{width:16px;height:16px;font-size:9px;line-height:16px;right:-5px;bottom:-3px}
+  .hole{left:calc(50% + 12px);top:-4px}
+  .me-strip .card.md{--w:34px}
+  .me-strip .postaw{min-height:44px}
+  .rack .tok{--sz:min(44px,11.5vw)!important}
+  .pending{gap:5px;padding:4px 6px 4px 8px}
+  .pending .pend-amt{font-size:16px}
+  .pending .pend-amt small{display:none}
+  .pending .pend-go{padding:7px 11px;font-size:13px}
+  .pending .stacks.big .d{width:16px;height:6px}
+  .top{flex-wrap:nowrap;gap:6px;padding-block:6px}
+  .brand{font-size:18px;letter-spacing:.03em;white-space:nowrap}
+  .brand small,.rate{display:none}
+  .top .btn{padding:7px 9px}
+  #btnLog .lbl,.blinds .lbl{display:none}
+  #btnLog .ico{display:inline}
+  .blinds{padding:6px 10px;font-size:12.5px}
+  .me-panel{gap:7px}
+  .me-panel.myturn{padding:8px}
+  .me-strip .av{width:38px;height:38px}
+  .rack .tok{--sz:min(50px,12.5vw)}
+  .stake input{font-size:20px;padding:6px 10px}
+  .stake .btn{padding:0 12px;font-size:14px}
+  .big-acts .btn{min-height:48px;font-size:16px}
+  .need{font-size:12px}
+  .btn.away-btn{padding:7px;font-size:12.5px}
+  .demo-bar{font-size:12px;padding:4px 8px}
+}
+/* computer: chips and amount side by side, so the panel is lower and the table bigger */
+@media (min-width:860px){
+  .me-panel.myturn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:18px;row-gap:8px;align-items:center}
+  .me-panel.myturn>.me-strip,.me-panel.myturn>.big-acts,.me-panel.myturn>.away-btn{grid-column:1/-1}
+  .me-panel.myturn>.rack{grid-column:1;grid-row:2/span 2;margin:0}
+  .me-panel.myturn>.stake{grid-column:2;grid-row:2}
+  .me-panel.myturn>.need{grid-column:2;grid-row:3;text-align:left}
+  .big-acts .btn{min-height:52px}
+}
+@keyframes fresh{0%{background:rgba(217,181,108,.35)}100%{background:transparent}}
+@media (max-width:859px){.feed .flist li:not(:first-child){display:none}}
+@media (min-width:860px){
+  .feed{width:230px;align-self:stretch;padding:10px 12px;gap:8px}
+  .feed .fhead{white-space:normal;font-size:14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .feed .flist{overflow-y:auto;gap:4px}
+  .feed .flist li{white-space:normal}
+  .feed .flist li.sep{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  .feed .flist li.sep:first-child{margin-top:0;padding-top:0;border-top:none}
+}
 
 /* chat bubble button on the table's right edge */
 .fab{position:absolute;right:max(4px,env(safe-area-inset-right,0px));top:50%;transform:translateY(-50%);z-index:6;width:54px;height:54px;border-radius:50%;border:none;background:var(--wa-green);color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px rgba(0,0,0,.45)}
@@ -457,12 +547,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <span class="rate">1000 żet. = 100 zł</span>
     <button class="blinds" id="blindsPill" type="button" title="Ciemne">Ciemne 5/10</button>
     <button class="btn mute" id="btnMute" type="button" aria-label="Wycisz dźwięki" title="Dźwięki">🔊</button>
-    <button class="btn" id="btnLog" type="button">Historia</button>
+    <button class="btn" id="btnLog" type="button" aria-label="Historia"><span class="ico" aria-hidden="true">🕘</span><span class="lbl">Historia</span></button>
     <button class="btn" id="btnMenu" type="button" hidden>Menu</button>
   </header>
   <div class="main" id="main">
+    <aside class="feed" id="feed" aria-live="polite" aria-label="Przebieg rozdania"></aside>
     <main class="room" id="room">
       <div class="felt"></div>
+      <div class="pending" id="pending" hidden></div>
       <div class="center" id="center"><div class="hint">Łączenie ze stołem…</div></div>
       <div id="seats"></div>
       <button class="fab" id="fab" type="button" aria-label="Otwórz czat" hidden>
