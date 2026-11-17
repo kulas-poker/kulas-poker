@@ -28,6 +28,8 @@ if (!authErr) {
   ok('ukryte karty niedostępne dla graczy', !sec.error ? sec.data.length === 0 : true, sec.error?.message);
   const hc = await sb.from('hole_cards').select('*');
   ok('cudze karty niedostępne', !hc.error && hc.data.length === 0, hc.error?.message);
+  const gh = await sb.from('game_history').select('id, started_at, players').limit(1);
+  ok('historia gier jest dostępna dla graczy', !gh.error, gh.error?.message);
   const chat = await sb.from('chat').select('id').limit(1);
   ok('czat działa', !chat.error, chat.error?.message);
   const badPin = await call('adminCheck', {}, '000000-zly');

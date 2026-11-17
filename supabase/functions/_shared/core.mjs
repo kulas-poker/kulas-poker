@@ -45,6 +45,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
   if (needSeat && !seated) return { ok: false, error: 'Najpierw usiądź przy stole.' };
 
   let done = false;
+  let archive = null;
   switch (action) {
     case 'join': done = G.joinPlayer(s, uid, args.name); if (!done) return { ok: false, error: s.players.length >= G.MAXP ? 'Stół jest pełny.' : 'Wpisz imię i nazwisko.' }; break;
     case 'leave': done = G.leavePlayer(s, uid, now); break;
@@ -59,10 +60,11 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
     case 'rebuy': done = G.rebuy(s, uid); break;
     case 'away': done = G.sitOut(s, uid, now); break;
     case 'back': done = G.sitIn(s, uid); break;
+    case 'autofold': done = G.setAutoFold(s, uid, !!args.on, now); break;
     case 'show': done = G.showCards(s, uid); break;
     case 'timeout': done = G.timeoutFold(s, now); break;
     case 'blinds': done = G.setBlinds(s, Number(args.sb), Number(args.bb)); break;
-    case 'reset': done = G.resetGame(s); break;
+    case 'reset': archive = G.endGame(s, now); done = true; break;
     case 'resetRanking': done = G.resetRanking(s); break;
     default: return { ok: false, error: 'Nieznana akcja.' };
   }
@@ -70,6 +72,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
 
   const { pub, secret: newSecret } = splitState(s);
   const out = { ok: true, state: pub, secret: newSecret };
+  if (archive) out.archive = archive;
   if (s.hand && s.hand.no !== prevNo) out.holes = { handNo: s.hand.no, cards: structuredClone(s.hand.hole) };
   return out;
 }

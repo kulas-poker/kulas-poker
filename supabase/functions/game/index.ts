@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
       if (res.unchanged) return json({ ok: true, admin: viaPin || undefined });
       const { data: v, error } = await db.rpc('save_game', {
         p_id: TABLE, p_expected: g ? g.version : -1, p_state: res.state,
-        p_secret: res.secret, p_holes: res.holes ?? null,
+        p_secret: res.secret, p_holes: res.holes ?? null, p_archive: res.archive ?? null,
       });
       if (error) return json({ ok: false, error: 'Błąd serwera: ' + error.message }, 500);
       if (v !== null) return json({ ok: true, admin: viaPin || undefined });

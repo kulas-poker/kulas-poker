@@ -125,5 +125,56 @@ for (let g = 0; g < 400; g++) {
   ok(G.P(U.pub, silent).away, 'player who ran out of time is moved to watching');
 }
 
+// automatic fold
+{
+  const S = server(); ['a', 'b', 'c'].forEach(id => S.call(id, 'join', { name: id.toUpperCase() }));
+  let t = 20_000_000;
+  ok(S.call('b', 'autofold', { on: true }, false, t).ok && G.P(S.pub, 'b').autoFold, 'auto-fold switched on');
+  for (let k = 0; k < 6; k++) {
+    t += 10_000; S.call('a', 'deal', {}, false, t);
+    let g = 0;
+    while (S.pub.hand && !S.pub.hand.result && g++ < 100) {
+      const h = S.pub.hand;
+      ok(h.toAct !== 'b', 'turn never waits for an auto-fold player');
+      S.call(h.toAct, 'act', { type: h.currentBet - h.st[h.toAct].bet > 0 ? 'call' : 'check' }, false, t);
+    }
+    if (S.pub.hand.st.b) ok(S.pub.hand.st.b.folded, 'auto-fold player folded in every hand');
+  }
+  ok(S.pub.log.some(l => l.includes('pas (auto)')), 'log shows the automatic fold');
+  // switching it on during your own turn folds right away
+  S.call('b', 'autofold', { on: false }, false, t);
+  t += 10_000; S.call('a', 'deal', {}, false, t);
+  const who = S.pub.hand.toAct;
+  S.call(who, 'autofold', { on: true }, false, t);
+  ok(S.pub.hand.st[who].folded && S.pub.hand.toAct !== who, 'auto-fold during own turn folds now');
+}
+
+// game history: a finished game is archived with everyone, including those who left early
+{
+  const S = server(); ['a', 'b', 'c'].forEach(id => S.call(id, 'join', { name: 'Gracz ' + id }));
+  let t = 30_000_000;
+  ok(S.call('x', 'reset', {}, true, t).archive === undefined, 'no record for a game without hands');
+  for (let k = 0; k < 5; k++) {
+    t += 10_000; S.call('a', 'deal', {}, false, t);
+    let g = 0;
+    while (S.pub.hand && !S.pub.hand.result && g++ < 100) {
+      const h = S.pub.hand; const r = Math.random();
+      S.call(h.toAct, 'act', { type: r < .3 ? 'fold' : (h.currentBet - h.st[h.toAct].bet > 0 ? 'call' : 'check') }, false, t);
+    }
+    if (k === 2) S.call('c', 'leave', {}, false, t + 1);
+  }
+  t += 10_000;
+  const r = S.call('x', 'reset', {}, true, t);
+  const a = r.archive;
+  ok(!!a && a.hands === 5, 'game record with the number of hands');
+  ok(a && a.startedAt < a.endedAt && a.endedAt === t, 'game record has start and end time');
+  ok(a && a.players.length === 3, 'all players are in the record');
+  ok(a && a.players.find(p => p.id === 'c').leftAt === 30_030_001, 'player who left early is marked with the time');
+  ok(a && a.players.reduce((s, p) => s + p.net, 0) === 0, 'game record balances (won = lost)');
+  ok(a && a.players.every((p, i, arr) => i === 0 || arr[i - 1].net >= p.net), 'record sorted from biggest winner');
+  ok(S.pub.gameHands === 0 && !S.pub.gameStart && Object.keys(S.pub.game).length === 0, 'new game starts clean');
+  ok(S.pub.players.every(p => p.chips === 1000), 'everyone back to 1000');
+}
+
 console.log(`Serwer: ${checks - fails}/${checks} sprawdzeń OK`);
 if (fails) process.exit(1);

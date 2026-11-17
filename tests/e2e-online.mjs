@@ -136,6 +136,14 @@ await D.click('#btnMenu'); await sleep(200);
 ok('właściciel widzi kod stołu w Menu', await ev(D, `!$('ownerCodeBox').hidden && $('ownerCode').textContent==='TEST'`));
 ok('zwykły gracz nie widzi kodu stołu', await ev(B, `$('ownerCodeBox').hidden`));
 ok('zwykły kod stołu nie daje trybu właściciela', (await ev(B, 'isOwner')) === false);
+await D.click('[data-close="menuBox"]').catch(()=>{});
+await D.click('#btnMenu'); await D.click('#resetBtn'); await D.click('#resetConfirm'); await sleep(500);
+await B.click('#btnLog'); await B.click('#htGames'); await sleep(500);
+const gtxt = await ev(B, `$('histGames').textContent`);
+ok('zakończona gra w historii u innych graczy', /rozdań/.test(gtxt) && gtxt.includes('Ala Nowak') && gtxt.includes('Bartek Kot'));
+ok('gracz, który wyszedł wcześniej, jest w historii z godziną', gtxt.includes('Celina Lis') && gtxt.includes('przed końcem gry'));
+ok('po zakończeniu gry wszyscy mają po 1000', await ev(A, 'viewState().players.every(p=>p.chips===1000)'));
+await B.click('[data-close="logBox"]');
 ok('brak błędów JavaScript', errs.length === 0, errs.slice(0, 3).join(' | '));
 
 await browser.close(); server.close();

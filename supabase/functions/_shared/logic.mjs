@@ -53,6 +53,8 @@ function startHand(s,now){
   if(elig.length<2||handActive(s)) return false;
   const dealer=nextIn(elig,s.dealerId,s.players.map(p=>p.id));
   s.dealerId=dealer;
+  if(!s.gameStart) s.gameStart=now;
+  s.gameHands=(s.gameHands||0)+1;
   const deck=shuffle(freshDeck()), order=elig, SB=s.sb||5, BB=s.bb||10;
   // only hole cards are dealt now; the rest of the deck is never stored
   const h={no:++s.handNo,order,dealer,hole:{},board:[],pot:0,stage:'preflop',st:{},sbAmt:SB,bbAmt:BB,currentBet:BB,minRaise:BB,toAct:null,turnAt:now,result:null,last:{}};
@@ -110,26 +112,32 @@ function revealAll(s){
       return {id,name:(P(s,id)||{name:'Gracz'}).name,cards:h.hole[id].slice(),folded:!!h.st[id].folded,hand,won:winAmt[id]||0,bet:h.st[id].total};
     })};
 }
+// a player who ticked "Automatyczny fold" passes as soon as the turn reaches them
+function autoFoldTurn(s,now){
+  const h=s.hand; if(!h||h.result) return;
+  const p=P(s,h.toAct);
+  if(p&&p.autoFold){h.autoNext=true; act(s,h.toAct,'fold',0,now)}
+}
 function proceed(s,lastId,now){
   const h=s.hand, live=h.order.filter(id=>!h.st[id].folded);
   if(live.length===1){winAll(s,live[0]);return}
   const can=live.filter(id=>!h.st[id].allIn);
   const pending=can.filter(id=>!h.st[id].acted||h.st[id].bet<h.currentBet);
   const done = pending.length===0 || (can.length===1 && h.st[can[0]].bet>=h.currentBet);
-  if(!done){h.toAct=nextIn(pending,lastId,h.order);h.turnAt=now;return}
+  if(!done){h.toAct=nextIn(pending,lastId,h.order);h.turnAt=now;autoFoldTurn(s,now);return}
   h.order.forEach(id=>{h.st[id].bet=0;h.st[id].acted=false});
   h.currentBet=0; h.minRaise=h.bbAmt; h.last={};
   if(h.stage==='river'){showdown(s);return}
   dealStreet(h);
   if(can.length<=1){while(h.stage!=='river')dealStreet(h);showdown(s);return}
-  h.toAct=nextIn(can,h.dealer,h.order); h.turnAt=now;
+  h.toAct=nextIn(can,h.dealer,h.order); h.turnAt=now; autoFoldTurn(s,now);
 }
 function act(s,id,type,amount,now){
   const h=s.hand; if(!h||h.result||h.toAct!==id) return false;
   const st=h.st[id], p=P(s,id); if(!p) return false;
   const toCall=h.currentBet-st.bet; let label;
   if(type==='allin'){ type = st.bet+p.chips>h.currentBet ? 'raise' : 'call'; amount=st.bet+p.chips; }
-  if(type==='fold'){st.folded=true;label='pas'}
+  if(type==='fold'){st.folded=true;label=h.autoNext?'pas (auto)':'pas';delete h.autoNext}
   else if(type==='check'){if(toCall>0)return false;label='czeka'}
   else if(type==='call'){if(toCall<=0)return false;const a=commit(s,id,toCall);label=st.allIn?`all-in ${a}`:`sprawdza ${a}`}
   else if(type==='raise'){
@@ -191,6 +199,7 @@ const HL_MS=5000;
 function joinPlayer(s,id,name){
   name=String(name||'').trim().replace(/\s+/g,' ').slice(0,40);
   if(!name) return false;
+  if(s.game&&s.game[id]) delete s.game[id].leftAt;
   const p=P(s,id); if(p){p.name=name;return true}
   if(s.players.length>=MAXP) return false;
   s.players.push({id,name,chips:START,buyins:1}); addLog(s,`${name} siada przy stole.`);
@@ -200,6 +209,7 @@ function leavePlayer(s,id,now){
   foldOut(s,id,now);
   const p=P(s,id); if(!p) return false;
   addLog(s,`${p.name.split(' ')[0]} wstaje od stołu.`);
+  if(s.game&&s.game[id]) s.game[id].leftAt=now; // left before the end of the game
   s.players=s.players.filter(x=>x.id!==id);
   return true;
 }
@@ -248,8 +258,30 @@ function setBlinds(s,a,b){
   if(s.sb===a&&s.bb===b) return false;
   s.sb=a; s.bb=b; addLog(s,`Ciemne od następnego rozdania: ${a}/${b}.`); return true;
 }
+function setAutoFold(s,id,on,now){
+  const p=P(s,id); if(!p||!!p.autoFold===!!on) return false;
+  p.autoFold=!!on;
+  addLog(s,`${nm(s,id)} ${on?'włącza':'wyłącza'} automatyczny fold.`);
+  if(on&&handActive(s)&&s.hand.toAct===id) autoFoldTurn(s,now);
+  return true;
+}
+// end of a game: returns the record for the game history (null if no hand was finished)
+function gameRecord(s,now){
+  const rows=Object.entries(s.game||{}).filter(([,r])=>r.hands>0||r.rebuys>0);
+  if(!rows.length) return null;
+  return {startedAt:s.gameStart||now, endedAt:now, hands:s.gameHands||0,
+    players:rows.map(([id,r])=>({id,name:r.name||'Gracz',net:(r.won||0)-(r.lost||0),won:r.won||0,lost:r.lost||0,
+      hands:r.hands||0,wins:r.wins||0,best:r.best||0,rebuys:r.rebuys||0,leftAt:r.leftAt||null}))
+      .sort((a,b)=>b.net-a.net)};
+}
+function endGame(s,now){
+  const rec=gameRecord(s,now);
+  resetGame(s);
+  if(rec) addLog(s,`Poprzednia gra zapisana w historii (${rec.hands} rozdań).`);
+  return rec;
+}
 function resetGame(s){
-  s.players.forEach(p=>{p.chips=START;p.buyins=1}); s.game={}; s.hand=null; s.log=[];
+  s.players.forEach(p=>{p.chips=START;p.buyins=1}); s.game={}; s.gameStart=null; s.gameHands=0; s.hand=null; s.log=[];
   addLog(s,`Nowa gra. Wszyscy mają po ${START} żetonów.`); return true;
 }
 function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został wyzerowany.'); return true; }
@@ -257,4 +289,4 @@ function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został 
 export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
   freshDeck,rnd,shuffle,eval5,best7,newState,migrate,P,nm,addLog,nextIn,commit,handActive,breakdown,
   startHand,drawCard,dealStreet,cardTxt,statRow,recordHand,revealAll,proceed,act,winAll,showdown,foldOut,
-  joinPlayer,leavePlayer,rebuy,sitOut,sitIn,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
+  joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};

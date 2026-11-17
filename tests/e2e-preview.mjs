@@ -27,6 +27,7 @@ async function run(width,height,label){
   ok(pre+'stosy bez śmieciowych znaków',await ev(`!$('seats').textContent.includes('">')`));
   await p.click('.tok.d25');await p.click('.tok.d25');
   ok(pre+'stawiane żetony widać na stole z przyciskiem Postaw',await ev(`!$('pending').hidden&&$('pending').textContent.includes('+50')&&!!$('pending').querySelector('[data-a="bet"]')`));
+  if(width>=600) await ev(`$('demoBar').hidden=true;renderTable(viewState())`);
   if(width>=600)   ok(pre+'okienko stawiania nie zasłania puli',await ev(`(()=>{const a=$('pending').getBoundingClientRect(),b=document.querySelector('#center .pot');if(!b)return true;const c=b.getBoundingClientRect();return a.right<=c.left||a.left>=c.right||a.bottom<=c.top||a.top>=c.bottom})()`));
   ok(pre+'żetony dodają się do kwoty',await ev(`$('betInput').value==='50'`),await ev(`$('betInput').value`));
   await p.click('[data-clear]');ok(pre+'Wyczyść zeruje kwotę',await ev(`$('betInput').value===''&&betAmt===0`));
@@ -40,6 +41,8 @@ async function run(width,height,label){
   for(let i=0;i<6&&(r=await botsUntilMe())==='me';i++){await p.click('[data-a="call"],[data-a="check"]');await p.waitForTimeout(100)}
   ok(pre+'rozdanie dochodzi do końca',r==='end');
   const sd=await ev('!!viewState().hand.result.showdown');
+  ok(pre+'wynik ukryty, dopóki krupier odkrywa karty',!sd||await ev(`revealing(viewState().hand)?document.querySelectorAll('#center .card.win').length===0&&!document.querySelector('#center .banner'):true`));
+  await p.waitForFunction(()=>!revealing(viewState().hand),null,{timeout:8000});await p.waitForTimeout(150);
   if(sd) ok(pre+'podświetlone zwycięskie karty',await ev(`document.querySelectorAll('#center .card.win').length>=1`));
   ok(pre+'„Następne rozdanie” zablokowane 5 s',await ev(`document.querySelector('[data-a="deal"]').disabled`));
   await p.waitForTimeout(5300);
@@ -89,6 +92,25 @@ async function run(width,height,label){
   ok(pre+'„Odejdź od stołu” i przycisk „Usiądź”',await ev('P(viewState(),me).away')&&await p.isVisible('[data-a="back"]'));
   await p.click('[data-a="back"]');await p.waitForTimeout(150);
   ok(pre+'„Usiądź” wraca do gry',await ev('!P(viewState(),me).away'));
+  // board cards: face down first, turned over together about a second later
+  await ev(`(()=>{state=JSON.parse(JSON.stringify(state));if(state.hand&&state.hand.result)state.hand.result.at=0;boardAnim=null})()`);
+  if(await ev('P(viewState(),me).away')){await p.click('[data-a="back"]');await p.waitForTimeout(100)}
+  await ev(`mutate((s,now)=>{if(handActive(s))return false;return startHand(s,now)})`);await p.waitForTimeout(2600);
+  await ev(`mutate((s,now)=>{let g=0;while(handActive(s)&&s.hand.stage==='preflop'&&g++<20){const h=s.hand,id=h.toAct;act(s,id,h.currentBet-h.st[id].bet>0?'call':'check',0,now)}return true})`);
+  await p.waitForTimeout(150);
+  if(await ev('viewState().hand.board.length===3&&handActive(viewState())')){
+    ok(pre+'flop: 3 karty najpierw zakryte',await ev(`document.querySelectorAll('#center .board .card.back').length===3`));
+    await p.waitForTimeout(1900);
+    ok(pre+'po sekundzie odkryte wszystkie naraz',await ev(`document.querySelectorAll('#center .board .card.back').length===0&&document.querySelectorAll('#center .board .card:not(.slot)').length===3`));
+  }
+  // automatic fold
+  await p.click('#autoFoldBox');await p.waitForTimeout(150);
+  ok(pre+'pole „Automatyczny fold” włącza go',await ev('!!P(viewState(),me).autoFold'));
+  for(let i=0;i<20;i++){const r=await ev(`(()=>{const s=viewState(),h=s.hand;if(!handActive(s))return 'end';return h.toAct===me?'me':'bot'})()`);if(r!=='bot')break;
+    await ev(`mutate((s,now)=>{const h=s.hand,id=h.toAct,t=h.currentBet-h.st[id].bet;return act(s,id,t>0?'call':'check',0,now)})`);await p.waitForTimeout(30)}
+  ok(pre+'gdy przychodzi moja kolej, pasuję automatycznie',await ev('!handActive(viewState())||(viewState().hand.st[me]&&viewState().hand.st[me].folded&&viewState().hand.toAct!==me)'));
+  await p.click('#autoFoldBox');await p.waitForTimeout(150);
+  ok(pre+'pole można wyłączyć',await ev('!P(viewState(),me).autoFold'));
   // chat
   await p.click('#fab');await p.waitForTimeout(200);
   ok(pre+'czat się otwiera i nie zasłania stołu',await ev(`(()=>{const c=$('chat').getBoundingClientRect(),r=$('room').getBoundingClientRect();return c.width>0&&(c.left>=r.right-1||c.top>=r.bottom-1)})()`));
@@ -108,6 +130,9 @@ async function run(width,height,label){
   await p.click('#blindsPill');await p.click('[data-level="25,50"]');await p.waitForTimeout(100);
   ok(pre+'zmiana ciemnych (właściciel)',await ev('viewState().sb===25&&viewState().bb===50'));
   await ev(`$('ownerTools').hidden=false`);await p.click('#btnMenu');await p.click('#resetBtn');await p.click('#resetConfirm');await p.waitForTimeout(150);
+  await p.click('#btnLog');await p.click('#htGames');await p.waitForTimeout(150);
+  ok(pre+'Historia → Gry: zakończona gra z datą i graczami',await ev(`document.querySelectorAll('#histGames .gcard:not(.live)').length===1&&document.querySelectorAll('#histGames .gcard:not(.live) .grow').length>=2&&/rozdań/.test($('histGames').textContent)`));
+  await p.click('#htHands');await p.click('[data-close="logBox"]');
   ok(pre+'Nowa gra: wszyscy po 1000, bieżący ranking pusty',await ev(`viewState().players.every(p=>p.chips===1000&&p.buyins===1)&&Object.keys(viewState().game).length===0&&Object.keys(viewState().ranking).length>0`));
   // tutorial full run
   await p.click('#btnMenu');await p.click('#tutMenu');await p.waitForTimeout(300);

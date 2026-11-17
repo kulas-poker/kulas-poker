@@ -16,6 +16,7 @@ window.KP_MOCK = (() => {
     savePhoto: (photo) => j('photos', { photo }),
     async uploadGif() { throw new Error('no gifs in tests'); },
     gifUrl: (p) => p,
+    history: () => j('history'),
     subscribe({ onState, onChat, onPhotos, onGifs }) {
       const load = { state: async () => onState((await j('state')).state), chat: async () => onChat(await j('chat')), photos: async () => onPhotos(await j('photos')) };
       const es = new EventSource('/api/events');

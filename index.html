@@ -117,6 +117,32 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .rk .zl2.up{color:var(--win)}.rk .zl2.down{color:#ff8a80}.rk .zl2.even{color:var(--muted)}
 .rk .zl2 small{display:block;font:600 11px var(--f-body);color:var(--muted);margin-top:3px}
 .rk .st2{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.games{display:flex;flex-direction:column;gap:12px}
+.gcard{border:1px solid var(--line);border-radius:12px;background:var(--bg);padding:10px 12px;display:flex;flex-direction:column;gap:6px}
+.gcard.live{border-color:var(--brass);border-style:dashed}
+.ghead{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.ghead b{font-size:14px}
+.ghead span{font-size:12px;color:var(--muted)}
+.ghead .livebadge{font-size:10px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--brass-ink);background:var(--brass);border-radius:5px;padding:1px 6px}
+.grow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:0 10px;align-items:baseline;padding:4px 0;border-top:1px solid var(--line)}
+.grow .gn{font-weight:700;font-size:13.5px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.grow .gz{font:800 15px var(--f-display);font-variant-numeric:tabular-nums;text-align:right}
+.grow .gz.up{color:var(--win)}.grow .gz.down{color:#ff8a80}.grow .gz.even{color:var(--muted)}
+.grow small{grid-column:1/-1;font-size:11.5px;color:var(--muted)}
+.grow small .left{color:#ffb38a}
+/* automatic fold */
+.panel-row{display:flex;gap:8px;flex-wrap:wrap}
+.panel-row>*{flex:1 1 180px}
+.autofold{display:flex;align-items:center;gap:10px;border:1px dashed var(--line);border-radius:10px;padding:8px 12px;cursor:pointer;font-weight:600;font-size:13.5px;color:var(--fg);user-select:none}
+.autofold input{width:20px;height:20px;accent-color:#b3322b;flex:none;margin:0}
+.autofold small{display:block;font-weight:500;font-size:11.5px;color:var(--muted)}
+.autofold.on{border-style:solid;border-color:#b3322b;background:rgba(179,50,43,.15)}
+/* board cards: placed face down, turned over together */
+.card.bdeal{animation:bdeal .32s cubic-bezier(.2,.8,.3,1) both}
+@keyframes bdeal{from{transform:translateY(-60px) rotate(-10deg) scale(.7);opacity:0}}
+.card.flipin{animation:flipin .38s ease-out both}
+@keyframes flipin{from{transform:perspective(400px) rotateY(90deg)}to{transform:perspective(400px) rotateY(0)}}
+@media (prefers-reduced-motion:reduce){.card.bdeal,.card.flipin{animation:none}}
 .lh{display:flex;flex-direction:column;gap:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
 .lh h3{margin:0;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
 .lh .board{justify-content:flex-start;flex-wrap:wrap}
@@ -234,15 +260,19 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
   .big-acts .btn{min-height:48px;font-size:16px}
   .need{font-size:12px}
   .btn.away-btn{padding:7px;font-size:12.5px}
+  .me-panel.myturn .panel-row{display:none}
+  .autofold{padding:6px 10px;font-size:12.5px}
   .demo-bar{font-size:12px;padding:4px 8px}
 }
 /* computer: chips and amount side by side, so the panel is lower and the table bigger */
 @media (min-width:860px){
   .me-panel.myturn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:18px;row-gap:8px;align-items:center}
   .me-panel.myturn>.me-strip,.me-panel.myturn>.big-acts,.me-panel.myturn>.away-btn{grid-column:1/-1}
-  .me-panel.myturn>.rack{grid-column:1;grid-row:2/span 2;margin:0}
+  .me-panel.myturn>.panel-row{grid-column:2;grid-row:3}
+  .me-panel.myturn>.panel-row .autofold{padding:5px 10px}
+  .me-panel.myturn>.rack{grid-column:1;grid-row:2;margin:0}
   .me-panel.myturn>.stake{grid-column:2;grid-row:2}
-  .me-panel.myturn>.need{grid-column:2;grid-row:3;text-align:left}
+  .me-panel.myturn>.need{grid-column:1;grid-row:3;text-align:center}
   .big-acts .btn{min-height:52px}
 }
 @keyframes fresh{0%{background:rgba(217,181,108,.35)}100%{background:transparent}}
@@ -620,9 +650,16 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 
 <div class="overlay" id="logBox" hidden>
   <div class="sheet">
-    <h2>Historia rozdań</h2>
-    <div class="lh" id="lastHand"></div>
-    <div class="log" id="logList"></div>
+    <h2>Historia</h2>
+    <div class="rtabs" role="tablist">
+      <button type="button" role="tab" class="on" data-htab="hands" id="htHands">Rozdania</button>
+      <button type="button" role="tab" data-htab="games" id="htGames">Gry</button>
+    </div>
+    <div id="histHands" style="display:flex;flex-direction:column;gap:14px">
+      <div class="lh" id="lastHand"></div>
+      <div class="log" id="logList"></div>
+    </div>
+    <div id="histGames" class="games" hidden></div>
     <button class="btn" type="button" data-close="logBox">Zamknij</button>
   </div>
 </div>
@@ -680,9 +717,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
         <div><b id="ownerCode">—</b><button class="btn" type="button" id="copyCode">Kopiuj</button></div>
       </div>
       <button class="btn" type="button" id="blindsMenuBtn">Zmień ciemne</button>
-      <p>Nowa gra: każdy wraca do 1000 żetonów (100 zł), bilanse się zerują, bieżące rozdanie przepada.</p>
-      <button class="btn danger" type="button" id="resetBtn">Zacznij nową grę</button>
-      <button class="btn danger" type="button" id="resetConfirm" hidden>Na pewno? Kliknij, aby zresetować</button>
+      <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupki). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
+      <button class="btn danger" type="button" id="resetBtn">Zakończ grę i zapisz w historii</button>
+      <button class="btn danger" type="button" id="resetConfirm" hidden>Na pewno? Kliknij, aby zakończyć grę</button>
     </div>
     <button class="btn" type="button" data-close="menuBox">Zamknij</button>
   </div>

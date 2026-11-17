@@ -71,6 +71,11 @@ export function createBackend(cfg) {
       return path;
     },
     gifUrl(path) { return sb.storage.from('gifs').getPublicUrl(path).data.publicUrl; },
+    async history() {
+      const { data, error } = await sb.from('game_history').select('*').order('ended_at', { ascending: false }).limit(60);
+      if (error) throw error;
+      return (data || []).map(r => ({ startedAt: Date.parse(r.started_at), endedAt: Date.parse(r.ended_at), hands: r.hands, players: r.players || [] }));
+    },
 
     subscribe({ onState, onChat, onPhotos, onGifs, onStatus }) {
       let chat = [], photos = {}, gifs = [];

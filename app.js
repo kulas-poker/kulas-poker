@@ -28,7 +28,7 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const TAB=Math.random().toString(36).slice(2,8);
 let KP=null,me=null,isOwner=false,myHole=null,serverOk=false,isMember=false,live=false;
-const SHUF_MS=1900, DEAL_STEP=230; let dealPlan=null, feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
+const SHUF_MS=1900, DEAL_STEP=230; let dealPlan=null, boardAnim=null, demoHistory=[], histTab='hands', feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
 let messages=[],chatOpen=false,pickerTab=null,gifLib=[],lastSeen=0,firstChatLoad=true;
 try{lastSeen=+localStorage.getItem('ns-seen')||0}catch(_){}
 
@@ -173,10 +173,12 @@ function renderFeed(s){
   else if(h&&handActive(s)&&h.toAct){
     const left=Math.max(0,SKIP_MS-(Date.now()-(h.turnAt||0)));
     head=(h.toAct===me?'<b class="you">Twoja kolej</b>':`Kolej: <b>${esc(nm(s,h.toAct))}</b>`)+` <span class="fclock" id="feedClock">${fmtClock(left)}</span>`;
-  } else if(h&&h.result) head='Rozdanie zakończone: '+h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> +${w.amount}`).join(', ');
+  } else if(h&&h.result&&revealing(h)) head='Krupier odkrywa karty…';
+  else if(h&&h.result) head='Rozdanie zakończone: '+h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> +${w.amount}`).join(', ');
   else head=s.players.length<2?'Czekamy na graczy':'Czekamy na rozdanie';
-  const log=(s.log||[]).slice(-16).reverse();
-  const sig=(s.log||[]).length+'|'+(log[0]||'');
+  const full=(h&&revealing(h)&&boardAnim.logLen!=null)?(s.log||[]).slice(0,boardAnim.logLen):(s.log||[]);
+  const log=full.slice(-16).reverse();
+  const sig=full.length+'|'+(log[0]||'');
   const fresh=sig!==lastFeedSig&&lastFeedSig!==''; lastFeedSig=sig;
   box.innerHTML=`<div class="fhead">${head}${log[0]&&!log[0].startsWith('—')?`<span class="flast"> · ${esc(log[0])}</span>`:''}</div><ol class="flist">${log.map((l,i)=>`<li class="${l.startsWith('—')?'sep':''}${i===0&&fresh?' fresh':''}">${esc(l.replace(/^— /,''))}</li>`).join('')||'<li class="sep">Tu pojawią się ruchy graczy.</li>'}</ol>`;
 }
@@ -225,9 +227,13 @@ function kickMoney(){
 }
 
 const HL_MS=5000;
+// while the dealer is still turning over board cards, the result stays hidden
+function revealEnd(h){return boardAnim&&h&&boardAnim.no===h.no?boardAnim.end:0}
+function revealing(h){return Date.now()<revealEnd(h)}
+function resultBase(h){return Math.max(h.result.at||0,revealEnd(h))}
 function hlCards(h){
   if(!h||!h.result||!h.result.best||!h.result.at) return null;
-  if(Date.now()-h.result.at>=HL_MS) return null;
+  if(revealing(h)||Date.now()-resultBase(h)>=HL_MS) return null;
   const set=new Set(); Object.values(h.result.best).forEach(cs=>(cs||[]).forEach(c=>set.add(c)));
   return set.size?set:null;
 }
@@ -236,7 +242,7 @@ let hlTimer=0;
 function scheduleHl(h){
   clearTimeout(hlTimer);
   if(!h||!h.result||!h.result.at) return;
-  const left=HL_MS-(Date.now()-h.result.at);
+  const left=HL_MS-(Date.now()-resultBase(h));
   if(left>0) hlTimer=setTimeout(()=>{lastBarKey='';render()},Math.min(1000,left)+30);
 }
 function layout(s){
@@ -255,7 +261,8 @@ function renderTable(s){
   const h=s.hand, players=s.players;
   const L=layout(s), W=L.W, H=L.H;
   let html='';
-  const winIds=new Set(h&&h.result?h.result.winners.map(w=>w.id):[]);
+  const rev=h&&revealing(h);
+  const winIds=new Set(h&&h.result&&!rev?h.result.winners.map(w=>w.id):[]);
   players.forEach((p,i)=>{
     const {x,y,bx,by}=L.pos[p.id];
     const st=h&&h.st?h.st[p.id]:null, isMe=p.id===me;
@@ -264,17 +271,18 @@ function renderTable(s){
     if(!st||st.folded) cls+=' out';
     let tag='';
     if(!st) tag = h&&!h.result ? 'czeka' : (p.chips===0?'bez żetonów':'');
-    else if(h.result&&h.result.showdown&&h.result.hands&&h.result.hands[p.id]) tag=`<span class="tag hand">${esc(h.result.hands[p.id])}</span>`;
+    else if(!rev&&h.result&&h.result.showdown&&h.result.hands&&h.result.hands[p.id]) tag=`<span class="tag hand">${esc(h.result.hands[p.id])}</span>`;
     else if(st.folded) tag='pas';
     else if(st.allIn) tag='all-in';
     else if(h.last&&h.last[p.id]) tag=esc(h.last[p.id]);
+    if(p.autoFold&&(!st||st.folded)) tag='⏭ auto-fold';
     if(p.away&&(!st||st.folded)){tag='☕ obserwuje';cls+=' away'}
     if(tag && !tag.startsWith('<')) tag=`<span class="tag">${tag}</span>`;
     if(shown && !(h.result&&h.result.showdown)) tag=`<span class="tag hand">pokazuje</span>`;
     let hole='';
     const flyAttr=(ci)=>{const d=dealDelay(p.id,ci); return d!==null&&d>-520?` fly" style="--fx:${((50-x)/100*W).toFixed(0)}px;--fy:${((50-y)/100*H).toFixed(0)}px;animation-delay:${Math.round(d)}ms`:''};
     if(st && (!st.folded || shown)){
-      const show = isMe || shown || (h.result&&h.result.showdown);
+      const show = isMe || ((shown || (h.result&&h.result.showdown)) && !rev);
       const hs=show?hlCards(h):null;
       hole=`<div class="hole">${h.hole[p.id].map((c,ci)=>cardHtml(show?c:'back',(isMe?'md':'sm')+flyAttr(ci)+hlCls(hs,c))).join('')}</div>`;
     }
@@ -301,12 +309,17 @@ function renderTable(s){
 
   let c='';
   if(h){
-    const fresh=h.board.length>lastBoardLen;
-    const hs=hlCards(h);
-    const slots=[0,1,2,3,4].map(i=>cardHtml(h.board[i], (fresh&&i>=lastBoardLen?'deal':'')+(h.board[i]?hlCls(hs,h.board[i]):''))).join('');
+    const hs=hlCards(h), now=Date.now(), BA=boardAnim&&boardAnim.no===h.no?boardAnim:null;
+    const slots=[0,1,2,3,4].map(i=>{
+      const card=h.board[i]; if(!card) return cardHtml(null);
+      const a=BA&&BA.cards[i];
+      if(a&&now<a.flipAt) return cardHtml('back',now<a.landAt+400?`bdeal" style="animation-delay:${a.landAt-now}ms`:'');
+      if(a&&now<a.flipAt+420) return cardHtml(card,`flipin" style="animation-delay:${a.flipAt-now}ms`);
+      return cardHtml(card,hlCls(hs,card));
+    }).join('');
     lastBoardLen=h.board.length;
     c+=`<div class="board">${slots}</div>`;
-    if(h.result){
+    if(h.result&&!rev){
       c+=`<div class="banner">${h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> wygrywa ${w.amount}${w.hand?` · ${esc(w.hand)}`:''}`).join('<br>')}</div>`;
     } else c+=`<div class="pot">${stacksHtml(h.pot,6,8,'big')}<div><div class="lbl">Pula</div>${h.pot}</div></div>`;
   } else {
@@ -392,6 +405,7 @@ function noise(dur,vol=.15,when=0,freq=2000,q=1){
 }
 const SFX={
   shuffle(){[0.12,0.92].forEach(o=>{for(let i=0;i<14;i++)noise(.04,.2,o+.28+i*.028,1800+Math.random()*1800,.8)});noise(.06,.25,1.72,900,.7)},
+  flip(){noise(.05,.22,0,2600,1);noise(.05,.16,.06,2200,1)},
   deal(n,base=.55,step=.07){for(let i=0;i<n;i++)noise(.035,.16,base+i*step,3500,1.2)},
   chip(k=1){for(let i=0;i<k;i++){const w=i*.06+Math.random()*.02;tone(2500+Math.random()*700,.07,'triangle',.12,w);tone(3600+Math.random()*500,.05,'sine',.06,w+.01)}},
   check(){tone(160,.07,'sine',.35);tone(150,.07,'sine',.3,.12)},
@@ -426,6 +440,23 @@ function flyChips(from,to,amount,delay=0){
   setTimeout(()=>el.remove(),delay+900);
 }
 const CENTER={x:50,y:47};
+// flop: three cards face down one after another, turned over together a second later; turn and river the same
+function startBoardAnim(h,from,logLen){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const now=Date.now(), cards={}; let t=now+250;
+  const groups=[[0,1,2],[3],[4]].map(g=>g.filter(i=>i>=from&&i<h.board.length)).filter(g=>g.length);
+  groups.forEach(g=>{
+    g.forEach((i,k)=>{cards[i]={landAt:t+k*300}});
+    const flipAt=t+(g.length-1)*300+1000;
+    g.forEach(i=>cards[i].flipAt=flipAt);
+    g.forEach((i,k)=>setTimeout(()=>SFX.deal(1,0),t+k*300-now));
+    setTimeout(()=>{SFX.flip();render()},flipAt-now);
+    t=flipAt+700;
+  });
+  const end=t-700+450;
+  boardAnim={no:h.no,cards,end,logLen};
+  setTimeout(()=>{lastBarKey='';render()},end-now+30);
+}
 function onStateChange(prev,next){
   const ph=prev&&prev.hand, nh=next.hand;
   if(!nh) return;
@@ -456,12 +487,13 @@ function onStateChange(prev,next){
   // street ended: bets slide into the pot
   const streetEnded = ph.stage!==nh.stage || (!ph.result&&nh.result);
   if(streetEnded) nh.order.forEach(id=>{const a=ph.st[id], b=nh.st[id], p=pos(id); const amt=a?a.bet:0; if(p&&amt>0) flyChips({x:p.bx,y:p.by},CENTER,amt,chipSound?350:0)});
-  if(streetEnded&&!nh.result) setTimeout(()=>SFX.deal(nh.board.length-ph.board.length),100);
+  if(nh.board.length>ph.board.length) startBoardAnim(nh,ph.board.length,(ph.log||[]).length);
+  const wait=Math.max(0,revealEnd(nh)-Date.now());
   // hand finished: pot goes to the winners
   if(!ph.result&&nh.result){
-    nh.result.winners.forEach((w,i)=>{const p=pos(w.id); if(p) flyChips(CENTER,{x:p.x,y:p.y},w.amount,700+i*150)});
+    nh.result.winners.forEach((w,i)=>{const p=pos(w.id); if(p) flyChips(CENTER,{x:p.x,y:p.y},w.amount,wait+700+i*150)});
     const iWon=nh.result.winners.some(w=>w.id===me), iPlayed=!!nh.st[me];
-    setTimeout(()=>{iWon?SFX.win():(iPlayed?SFX.lose():SFX.chip(3))},650);
+    setTimeout(()=>{iWon?SFX.win():(iPlayed?SFX.lose():SFX.chip(3))},wait+650);
   }
   if(nh.toAct===me&&ph.toAct!==me) SFX.turn();
 }
@@ -514,11 +546,12 @@ function renderBar(s){
     const late=live&&!myTurn&&Date.now()-(h.turnAt||0)>SKIP_MS+5000;
     const elig=s.players.filter(p=>p.chips>0&&!p.away).length;
     const canShow=!!(h&&h.result&&!h.result.showdown&&h.st&&h.st[me]&&!(h.shown&&h.shown[me]));
-    const lockLeft=h&&h.result&&h.result.at?Math.ceil((HL_MS-(Date.now()-h.result.at))/1000):0;
-    key=`p${lockLeft>0?lockLeft:0}${live}${myTurn}${h?h.no:0}${h?h.stage:''}${h?h.currentBet:0}${st?st.bet:0}${meP.chips}${late}${st&&st.folded}${elig}${canShow}${photos[me]?1:0}${meP.away?'a':''}`;
+    const lockLeft=h&&h.result&&h.result.at?Math.ceil((HL_MS-(Date.now()-resultBase(h)))/1000):0;
+    key=`p${lockLeft>0?lockLeft:0}${live}${myTurn}${h?h.no:0}${h?h.stage:''}${h?h.currentBet:0}${st?st.bet:0}${meP.chips}${late}${st&&st.folded}${elig}${canShow}${photos[me]?1:0}${meP.away?'a':''}${meP.autoFold?'f':''}`;
     if(myTurn && key!==lastBarKey) betAmt=0;
     const who=live&&h.toAct?esc(nm(s,h.toAct)):'';
-    if(meP.away) status = live?`Obserwujesz. Ruch: <b>${who}</b>`:'Obserwujesz grę.';
+    if(meP.autoFold&&!meP.away) status = 'Automatyczny fold włączony: pasujesz w każdej kolejce.';
+    else if(meP.away) status = live?`Obserwujesz. Ruch: <b>${who}</b>`:'Obserwujesz grę.';
     else if(!live) status = elig<2 ? 'Potrzeba co najmniej 2 graczy przy stole.' : (h?'Rozdanie zakończone.':'Wszyscy gotowi?');
     else if(myTurn) status='';
     else status=(st&&!st.folded?`Ruch: <b>${who}</b>`:(st?`Spasowałeś. Ruch: <b>${who}</b>`:`Dołączysz od następnego rozdania. Ruch: <b>${who}</b>`));
@@ -548,7 +581,8 @@ function renderBar(s){
     } else if(late){
       rest=`<div class="acts" style="grid-template-columns:1fr"><button class="btn" data-a="skip">${who} nie odpowiada: spasuj za niego</button></div>`;
     }
-    const awayBtn=!myTurn?`<button class="btn away-btn" data-a="away" type="button">☕ Odejdź od stołu (obserwuj)</button>`:'';
+    const autoBox=`<label class="autofold ${meP.autoFold?'on':''}"><input type="checkbox" id="autoFoldBox" ${meP.autoFold?'checked':''}><span>Automatyczny fold<small>pasuję w każdej kolejce</small></span></label>`;
+    const awayBtn=`<div class="panel-row">${!myTurn?`<button class="btn away-btn" data-a="away" type="button">☕ Odejdź od stołu (obserwuj)</button>`:''}${autoBox}</div>`;
     if(meP.away){
       controls=`<div class="me-panel">${strip}<div class="away-note">☕ Obserwujesz grę. Nie dostajesz kart, a Twoje miejsce i żetony czekają.</div>
         <div class="big-acts" style="grid-template-columns:1fr"><button class="btn allin" data-a="back" type="button">Usiądź<small>wracasz od następnego rozdania</small></button></div></div>`;
@@ -686,7 +720,46 @@ $('gifFile').onchange=e=>{const f=e.target.files[0];if(f)uploadGif(f);e.target.v
 $('comp').onsubmit=async e=>{e.preventDefault();const i=$('chatInput');const t=i.value.trim();if(!t)return;i.value='';if(!await sendMsg({kind:'text',text:t.slice(0,500)}))i.value=t};
 $('blindsPill').onclick=()=>{if(isOwner)$('blindsBox').hidden=false};
 $('blindsMenuBtn').onclick=()=>{$('menuBox').hidden=true;$('blindsBox').hidden=false};
-$('btnLog').onclick=()=>{$('logBox').hidden=false};
+$('btnLog').onclick=()=>{$('logBox').hidden=false; if(histTab==='games') loadGames()};
+document.addEventListener('change',async e=>{
+  if(e.target.id!=='autoFoldBox') return;
+  const on=e.target.checked;
+  const ok=await doIt('autofold',{on},(s,now)=>setAutoFold(s,me,on,now));
+  if(!ok){e.target.checked=!on}
+  else toast(on?'Automatyczny fold włączony: będziesz pasować w każdej kolejce.':'Automatyczny fold wyłączony.');
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-htab]'); if(!b) return;
+  histTab=b.dataset.htab;
+  $('htHands').classList.toggle('on',histTab==='hands'); $('htGames').classList.toggle('on',histTab==='games');
+  $('histHands').style.display=histTab==='hands'?'flex':'none'; $('histGames').hidden=histTab!=='games';
+  if(histTab==='games') loadGames();
+});
+// history of games: the game in progress, then finished games (date, players, won / lost, rebuys, who left early)
+async function loadGames(){
+  const box=$('histGames');
+  let list=[];
+  if(demo) list=demoHistory;
+  else if(KP&&KP.history){ box.innerHTML='<div class="lh-empty">Wczytuję historię gier…</div>'; try{list=await KP.history()}catch(_){box.innerHTML='<div class="lh-empty">Nie udało się wczytać historii. Spróbuj za chwilę.</div>';return} }
+  renderGames(list);
+}
+function renderGames(list){
+  const s=viewState(), box=$('histGames');
+  const zl=v=>(v>0?'+':v<0?'−':'±')+zlFmt(Math.abs(v)*ZL_PER_CHIP)+' zł';
+  const cls=v=>v>0?'up':v<0?'down':'even';
+  const tm=ts=>new Date(ts).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
+  const day=ts=>new Date(ts).toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  const rows=ps=>ps.map(p=>`<div class="grow"><span class="gn">${esc(p.name)}</span><span class="gz ${cls(p.net)}">${zl(p.net)}</span>
+    <small>wygrane ${zlFmt(p.won*ZL_PER_CHIP)} zł · przegrane ${zlFmt(p.lost*ZL_PER_CHIP)} zł · rozdań ${p.hands}${p.rebuys?` · dokupki: ${p.rebuys}`:''}${p.leftAt?` · <span class="left">wyjście przed końcem gry: ${tm(p.leftAt)}</span>`:''}</small></div>`).join('');
+  let html='';
+  const live=Object.entries(s.game||{}).filter(([,r])=>r.hands>0||r.rebuys>0);
+  if(live.length){
+    const ps=live.map(([id,r])=>({id,name:(P(s,id)||{}).name||r.name,net:r.won-r.lost,won:r.won,lost:r.lost,hands:r.hands,rebuys:r.rebuys||0,leftAt:r.leftAt||null})).sort((a,b)=>b.net-a.net);
+    html+=`<div class="gcard live"><div class="ghead"><b>Trwająca gra</b><span class="livebadge">w trakcie</span><span>od ${s.gameStart?tm(s.gameStart):'—'} · ${s.gameHands||0} rozdań</span></div>${rows(ps)}</div>`;
+  }
+  html+=list.map(g=>`<div class="gcard"><div class="ghead"><b>${esc(day(g.endedAt))}</b><span>${tm(g.startedAt)}–${tm(g.endedAt)} · ${g.hands} rozdań · ${g.players.length} graczy</span></div>${rows(g.players)}</div>`).join('');
+  box.innerHTML=html||'<div class="lh-empty">Nie ma jeszcze zakończonych gier. Gra trafia tutaj, gdy właściciel kliknie w Menu „Zakończ grę i zapisz w historii”.</div>';
+}
 $('btnMenu').onclick=()=>{$('menuBox').hidden=false;$('resetConfirm').hidden=true;$('resetBtn').hidden=false};
 $('rankMenu').onclick=()=>{$('menuBox').hidden=true;renderRanking(viewState());$('rankReset').hidden=false;$('rankResetOk').hidden=true;$('rankBox').hidden=false};
 document.addEventListener('click',e=>{const b=e.target.closest('[data-rtab]');if(!b)return;rankTab=b.dataset.rtab;$('rankReset').hidden=false;$('rankResetOk').hidden=true;renderRanking(viewState())});
@@ -695,7 +768,11 @@ $('rankResetOk').onclick=async()=>{$('rankBox').hidden=true;await doIt('resetRan
 $('photoChange').onclick=()=>{$('menuBox').hidden=true;$('photoQuick').click()};
 $('leaveBtn').onclick=async()=>{$('menuBox').hidden=true;await doIt('leave',{},(s,now)=>leavePlayer(s,me,now))};
 $('resetBtn').onclick=()=>{$('resetBtn').hidden=true;$('resetConfirm').hidden=false};
-$('resetConfirm').onclick=async()=>{$('menuBox').hidden=true;await doIt('reset',{},s=>resetGame(s))};
+$('resetConfirm').onclick=async()=>{
+  $('menuBox').hidden=true;
+  const ok=await doIt('reset',{},(s,now)=>{const r=endGame(s,now); if(r) demoHistory.unshift(r)});
+  if(ok) toast('Gra zakończona i zapisana w historii. Każdy ma znowu 1000 żetonów.');
+};
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};

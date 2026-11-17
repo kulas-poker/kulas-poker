@@ -6,7 +6,7 @@ import { handleAction } from '../supabase/functions/_shared/core.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const TABLE_CODE = 'TEST', ADMIN_PIN = '1234';
-const db = { pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
+const db = { history: [], pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
 const clients = new Set();
 const push = (type) => { for (const res of clients) res.write(`data: ${type}\n\n`); };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
@@ -23,7 +23,7 @@ function api(route, body, q) {
       if (action === 'enter') return { ok: true, admin: viaPin || undefined };
     } else if (!db.members.has(uid)) return { ok: false, error: 'Najpierw wpisz kod stołu.' };
     const r = handleAction({ publicState: db.pub, secret: db.secret, uid, action, args, isAdmin, now: Date.now() });
-    if (r.ok && !r.unchanged) { db.pub = r.state; db.secret = r.secret; if (r.holes) db.holes = r.holes; push('state'); }
+    if (r.ok && !r.unchanged) { db.pub = r.state; db.secret = r.secret; if (r.holes) db.holes = r.holes; if (r.archive) db.history.unshift(r.archive); push('state'); }
     return { ok: r.ok, error: r.error, admin: (r.ok && typeof viaPin !== 'undefined' && viaPin) || undefined };
   }
   const uid = q.get('uid');
@@ -33,6 +33,7 @@ function api(route, body, q) {
   if (route === 'chat') { if (body) { db.chat.push({ ...body, uid, at: Date.now() }); push('chat'); return { ok: true }; } return db.chat.slice(-120); }
   if (route === 'photos') { if (body) { db.photos[uid] = body.photo; push('photos'); return { ok: true }; } return db.photos; }
   if (route === 'member') return { member: true };
+  if (route === 'history') return db.history.slice(0, 60);
   return { error: 'unknown' };
 }
 
