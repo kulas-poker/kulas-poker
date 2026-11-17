@@ -51,7 +51,8 @@ jobs:
           echo "Wszystkie sekrety są ustawione."
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          # pinned on purpose: a new major version once changed the defaults and broke publishing
+          version: 3.2.0
       - name: Wersja narzędzia Supabase
         run: supabase --version
       - name: Połącz z projektem
@@ -65,9 +66,16 @@ jobs:
             supabase db push --linked --include-all
           fi
       - name: PIN właściciela i kod stołu
-        run: supabase secrets set ADMIN_PIN="${{ secrets.ADMIN_PIN }}" TABLE_CODE="${{ secrets.TABLE_CODE }}" --project-ref "$PROJECT_REF"
+        env:
+          ADMIN_PIN: ${{ secrets.ADMIN_PIN }}
+          TABLE_CODE: ${{ secrets.TABLE_CODE }}
+        run: |
+          yes_flag=""; supabase secrets set --help 2>&1 | grep -q -- '--yes' && yes_flag="--yes"
+          supabase secrets set ADMIN_PIN="$ADMIN_PIN" TABLE_CODE="$TABLE_CODE" --project-ref "$PROJECT_REF" $yes_flag
       - name: Serwer gry
-        run: supabase functions deploy game --project-ref "$PROJECT_REF"
+        run: |
+          yes_flag=""; supabase functions deploy --help 2>&1 | grep -q -- '--yes' && yes_flag="--yes"
+          supabase functions deploy game --project-ref "$PROJECT_REF" $yes_flag
 
   aplikacja:
     needs: serwer
