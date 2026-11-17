@@ -1,6 +1,6 @@
 // KULAS POKER: game server. Every move goes through here, so cards stay secret and rules are enforced.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
-import { handleAction } from '../_shared/core.mjs';
+import { handleAction, cleanName, nameKey } from '../_shared/core.mjs';
 
 // 'main' is the real table; 'selftest' is a hidden table the publishing robot plays on to check the server
 const TABLES = new Set(['main', 'selftest']);
@@ -40,6 +40,8 @@ Deno.serve(async (req) => {
     if (action === 'adminCheck') return json(isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false, error: 'Zły PIN.' });
 
     let viaPin = false;
+    let account: string | null = null; // the player's account (one per full name); moves are made as this account
+    let name = '';
     if (action === 'join' || action === 'enter') {
       // the table code lets someone in (to watch); 'join' also gives them a seat.
       // The owner may type their PIN instead of the code: that also switches on owner mode.
@@ -47,15 +49,29 @@ Deno.serve(async (req) => {
       viaPin = !!ADMIN_PIN && typed === ADMIN_PIN;
       if (!viaPin && (!TABLE_CODE || typed.toUpperCase() !== TABLE_CODE))
         return json({ ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' });
-      const name = String(args.name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+      name = cleanName(args.name);
       if (action === 'join' && !name) return json({ ok: false, error: 'Wpisz imię i nazwisko.' });
-      const { error: mErr } = await db.from('members').upsert({ uid, name: name || 'Gość' });
-      if (mErr) return json({ ok: false, error: 'Błąd serwera: ' + mErr.message }, 500);
-      if (action === 'enter') return json({ ok: true, admin: viaPin || undefined });
+      if (action === 'join') {
+        // same name = same account (from any phone); a new name = a new account
+        const key = nameKey(name);
+        await db.from('accounts').upsert({ name_key: key, name }, { onConflict: 'name_key', ignoreDuplicates: true });
+        const { data: acc, error: aErr } = await db.from('accounts').select('id, name').eq('name_key', key).maybeSingle();
+        if (aErr || !acc) return json({ ok: false, error: 'Błąd serwera: ' + (aErr?.message || 'brak konta') }, 500);
+        account = acc.id; name = acc.name;
+        const { error: mErr } = await db.from('members').upsert({ uid, name, account });
+        if (mErr) return json({ ok: false, error: 'Błąd serwera: ' + mErr.message }, 500);
+      } else {
+        // only watching: keep the account this phone already has
+        await db.from('members').upsert({ uid, name: 'Gość' }, { onConflict: 'uid', ignoreDuplicates: true });
+        const { data: m } = await db.from('members').select('account').eq('uid', uid).maybeSingle();
+        return json({ ok: true, admin: viaPin || undefined, account: m?.account || uid });
+      }
     } else {
-      const { data: m } = await db.from('members').select('uid').eq('uid', uid).maybeSingle();
+      const { data: m } = await db.from('members').select('uid, account').eq('uid', uid).maybeSingle();
       if (!m) return json({ ok: false, error: 'Najpierw wpisz kod stołu.' });
+      account = m.account;
     }
+    const player = account || uid;
 
     // optimistic locking: re-read and retry if someone else moved at the same moment
     for (let attempt = 0; attempt < 8; attempt++) {
@@ -63,16 +79,16 @@ Deno.serve(async (req) => {
       const { data: sec } = await db.from('game_secrets').select('secret').eq('id', TABLE).maybeSingle();
       const res = handleAction({
         publicState: g?.state ?? null, secret: sec?.secret ?? null,
-        uid, action, args, isAdmin, now: Date.now(),
+        uid: player, action, args: action === 'join' ? { ...args, name } : args, isAdmin, now: Date.now(),
       });
       if (!res.ok) return json(res);
-      if (res.unchanged) return json({ ok: true, admin: viaPin || undefined });
+      if (res.unchanged) return json({ ok: true, admin: viaPin || undefined, account: player });
       const { data: v, error } = await db.rpc('save_game', {
         p_id: TABLE, p_expected: g ? g.version : -1, p_state: res.state,
         p_secret: res.secret, p_holes: res.holes ?? null, p_archive: res.archive ?? null,
       });
       if (error) return json({ ok: false, error: 'Błąd serwera: ' + error.message }, 500);
-      if (v !== null) return json({ ok: true, admin: viaPin || undefined });
+      if (v !== null) return json({ ok: true, admin: viaPin || undefined, account: player });
       await new Promise((r) => setTimeout(r, 40 + Math.random() * 120));
     }
     return json({ ok: false, error: 'Stół jest zajęty, spróbuj jeszcze raz.' });

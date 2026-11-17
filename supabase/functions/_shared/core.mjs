@@ -4,6 +4,12 @@
 //   secret:      the hole cards of the current hand (only the server reads it)
 import * as G from './logic.mjs';
 
+// a player's account is their full name: case, extra spaces and Polish letters do not matter
+// (must match the SQL in migrations/20261117000200_accounts_by_name.sql)
+const PL = { 'ą': 'a', 'ć': 'c', 'ę': 'e', 'ł': 'l', 'ń': 'n', 'ó': 'o', 'ś': 's', 'ź': 'z', 'ż': 'z' };
+export function cleanName(name) { return String(name || '').trim().replace(/\s+/g, ' ').slice(0, 40); }
+export function nameKey(name) { return cleanName(name).toLowerCase().replace(/[ąćęłńóśźż]/g, c => PL[c]); }
+
 export function mergeState(publicState, secret) {
   const s = publicState ? structuredClone(publicState) : G.newState();
   G.migrate(s);

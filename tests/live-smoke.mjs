@@ -55,10 +55,11 @@ try {
   const PIN = process.env.ADMIN_PIN;
   const ja = await A.send('join', { name: 'Robot A', code: process.env.TABLE_CODE });
   const jb = await B.send('join', { name: 'Robot B', code: process.env.TABLE_CODE });
-  ok('stolik testowy: dwóch graczy siada', ja.ok && jb.ok, JSON.stringify([ja, jb]));
+  ok('stolik testowy: dwóch graczy siada', ja.ok && jb.ok && !!ja.account && !!jb.account && ja.account !== jb.account, JSON.stringify([ja, jb]));
+  A.id = ja.account; B.id = jb.account; // players are accounts (one per full name), not phones
   // clean start: remove robots left over from an earlier run, end any earlier test game
   const before = (await A.c.from('games').select('state').eq('id', 'selftest').maybeSingle()).data?.state;
-  for (const p of (before?.players || [])) if (p.id !== A.uid && p.id !== B.uid) await A.send('kick', { id: p.id }, PIN);
+  for (const p of (before?.players || [])) if (p.id !== A.id && p.id !== B.id) await A.send('kick', { id: p.id }, PIN);
   await A.send('reset', {}, PIN);
   const d = await A.send('deal');
   ok('stolik testowy: rozdanie kart (zapis ruchu na serwerze)', d.ok, JSON.stringify(d));
@@ -66,14 +67,19 @@ try {
   const st0 = await read(A);
   const ca = (await A.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
   const cb = (await B.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
-  ok('każdy dostaje tylko swoje 2 karty', ca.length === 1 && cb.length === 1 && ca[0].player_id === A.uid && cb[0].player_id === B.uid && ca[0].cards.length === 2, `${ca.length}/${cb.length}`);
+  ok('każdy dostaje tylko swoje 2 karty', ca.length === 1 && cb.length === 1 && ca[0].player_id === A.id && cb[0].player_id === B.id && ca[0].cards.length === 2, `${ca.length}/${cb.length}`);
   // the previous showdown stays public on purpose (lastHand, shown in the history), so only the rest of the state is checked
   const hidden = [...(ca[0]?.cards || []), ...(cb[0]?.cards || [])];
   const pubNow = st0 ? JSON.stringify({ ...st0, lastHand: null }) : '';
   ok('stan stołu nie zawiera ukrytych kart', st0 && st0.hand && !st0.hand.hole && hidden.length === 4 && hidden.every(c => !pubNow.includes(`"${c}"`)), hidden.filter(c => pubNow.includes(`"${c}"`)).join());
+  // the same name from another phone is the same account and sees the same cards
+  const A2 = await tester('Test A2');
+  const ja2 = await A2.send('join', { name: '  robot   A ', code: process.env.TABLE_CODE });
+  const ca2 = (await A2.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
+  ok('to samo imię z innego telefonu = to samo konto i te same karty', ja2.ok && ja2.account === A.id && ca2.length === 1 && JSON.stringify(ca2[0].cards) === JSON.stringify(ca[0]?.cards), JSON.stringify(ja2));
   let st = st0, g = 0;
   while (st && st.hand && !st.hand.result && g++ < 40) {
-    const who = st.hand.toAct === A.uid ? A : B, me = st.hand.st[who.uid];
+    const who = st.hand.toAct === A.id ? A : B, me = st.hand.st[who.id];
     const r = await who.send('act', { type: st.hand.currentBet - me.bet > 0 ? 'call' : 'check' });
     if (!r.ok) break;
     st = await read(A);

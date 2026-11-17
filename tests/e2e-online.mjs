@@ -54,6 +54,14 @@ ok('karty graczy różne', new Set(allCards).size === allCards.length);
 ok('karty w panelu po tasowaniu', (await Promise.all([A, B, C].map(p => ev(p, `document.querySelectorAll('.mycards .card:not(.back)').length`)))).every(n => n === 2));
 const raw = await Promise.all([A, B, C].map(p => ev(p, 'JSON.stringify(state)')));
 ok('cudze karty nie docierają nawet do telefonu', hands.every((h, i) => [0, 1, 2].filter(k => k !== i).every(k => hands[k].mine.every(c => !raw[i].includes(`"${c}"`)))));
+// the same name on another phone = the same account (seat, chips and cards); letters' case and Polish letters do not matter
+const B2 = await player('Bartek2');
+await B2.fill('#nameInput', '  bartek   KOT '); await B2.fill('#codeInput', 'test'); await B2.click('#joinBtn'); await sleep(700);
+if (await B2.isVisible('#tutNo')) await B2.click('#tutNo');
+ok('to samo imię i nazwisko z innego telefonu = to samo konto', (await ev(B2, 'me')) === (await ev(B, 'me')) && (await ev(A, 'viewState().players.length')) === 3);
+await sleep(600);
+ok('na drugim telefonie widać swoje karty z rozdania', JSON.stringify(await ev(B2, 'myHole&&myHole.cards')) === JSON.stringify(await ev(B, 'myHole&&myHole.cards')) && (await ev(B2, `document.querySelectorAll('.mycards .card:not(.back)').length`)) === 2);
+await B2.context().close();
 
 // play the hand: whoever has the move clicks; first actor raises with chips + POSTAW
 let raised = false, guard = 0;
@@ -138,16 +146,22 @@ ok('zwykły gracz nie widzi kodu stołu', await ev(B, `$('ownerCodeBox').hidden`
 ok('zwykły kod stołu nie daje trybu właściciela', (await ev(B, 'isOwner')) === false);
 await D.click('[data-close="menuBox"]').catch(()=>{});
 await D.click('#btnMenu'); await D.click('#resetBtn'); await D.click('#resetConfirm'); await sleep(500);
-await B.click('#btnLog'); await B.click('#htGames'); await sleep(500);
+await sleep(1200);
+ok('po zakończeniu gry każdemu otwiera się rozliczenie', await ev(B, `!$('logBox').hidden && !$('histGames').hidden && $('histGames').textContent.includes('Kto komu przelewa')`));
+const trs = await ev(B, `[...document.querySelectorAll('#histGames .gcard:not(.live)')][0].querySelectorAll('.st-row').length`);
+const nets = await ev(B, `[...document.querySelectorAll('#histGames .gcard:not(.live)')][0].querySelectorAll('.grow .gz.up,.grow .gz.down').length`);
+ok('rozliczenie: przelewy od przegranych do wygranych', nets < 2 || (trs >= 1 && trs <= nets - 1), trs + '/' + nets);
 const gtxt = await ev(B, `$('histGames').textContent`);
 ok('zakończona gra w historii u innych graczy', /rozdań/.test(gtxt) && gtxt.includes('Ala Nowak') && gtxt.includes('Bartek Kot'));
 ok('gracz, który wyszedł wcześniej, jest w historii z godziną', gtxt.includes('Celina Lis') && gtxt.includes('przed końcem gry'));
 ok('po zakończeniu gry wszyscy mają po 1000', await ev(A, 'viewState().players.every(p=>p.chips===1000)'));
 await B.click('[data-close="logBox"]');
+for (const p of [A, D]) if (await p.isVisible('#logBox')) await p.click('#logBox [data-close="logBox"]');
 // owner manages the players: someone closed the browser and still sits at the table
 const E = await player('Fryzjer');
 await E.fill('#nameInput', 'Fryzjer z Turcji'); await E.fill('#codeInput', 'TEST'); await E.click('#joinBtn'); await sleep(500);
 const eId = await ev(E, 'me');
+ok('nowe imię i nazwisko = nowe konto', !(await Promise.all([A, B, D].map(p => ev(p, 'me')))).includes(eId));
 ok('nowy gracz siada przy stole', await ev(D, `!!P(viewState(),${JSON.stringify(eId)})`));
 await E.context().close(); await sleep(600);
 await D.click('#btnMenu'); await D.click('#ownerPlayers summary'); await sleep(300);

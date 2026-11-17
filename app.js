@@ -625,12 +625,13 @@ function renderBar(s){
     const rack=`<div class="rack">${DENOMS.slice().reverse().map(d=>`<button class="tok d${d}" data-add="${d}" type="button" aria-label="Postaw ${d}" ${myTurn?'':'disabled'}>${chipFace(d)}</button>`).join('')}</div>`;
     let rest='';
     if(myTurn){
-      rest=`<div class="need">Do sprawdzenia: <b>${toCall}</b>${meP.chips>toCall?` · min. podbicie: <b>${Math.min(minRaiseAdd,meP.chips)}</b>`:''}</div>
-      <div class="stake"><div class="stake-pile" id="stakePile"></div><input type="number" id="betInput" inputmode="numeric" min="0" step="${UNIT}" data-max="${meP.chips}" placeholder="0" aria-label="Kwota do postawienia"><button class="btn" data-clear="1" type="button">Wyczyść</button></div>
+      const raiseOk=canRaise(h,me), cap=raiseOk?meP.chips:Math.min(meP.chips,toCall);
+      rest=`<div class="need">Do sprawdzenia: <b>${toCall}</b>${!raiseOk&&meP.chips>toCall?' · <span class="noraise">bez podbicia: all-in rywala był mniejszy niż pełne podbicie</span>':meP.chips>toCall?` · min. podbicie: <b>${Math.min(minRaiseAdd,meP.chips)}</b>`:''}</div>
+      <div class="stake"><div class="stake-pile" id="stakePile"></div><input type="number" id="betInput" inputmode="numeric" min="0" step="${UNIT}" data-max="${cap}" placeholder="0" aria-label="Kwota do postawienia"><button class="btn" data-clear="1" type="button">Wyczyść</button></div>
       <div class="big-acts">
         <button class="btn fold" data-a="fold" type="button">Fold</button>
         ${toCall>0?`<button class="btn call" data-a="call" type="button">Call<small>${toCall}</small></button>`:`<button class="btn call" data-a="check" type="button">Check</button>`}
-        <button class="btn allin" data-a="allin" type="button">All-in<small>${meP.chips}</small></button>
+        <button class="btn allin" data-a="allin" type="button" ${raiseOk||meP.chips<=toCall?'':'disabled'}>All-in<small>${raiseOk||meP.chips<=toCall?meP.chips:'niedostępny'}</small></button>
       </div>`;
     } else if(!live){
       const cols=1+(meP.chips===0?1:0)+(canShow?1:0);
@@ -797,6 +798,14 @@ document.addEventListener('click',e=>{
   if(histTab==='games') loadGames();
 });
 // history of games: the game in progress, then finished games (date, players, won / lost, rebuys, who left early)
+document.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-copy]'); if(!b) return;
+  const text=decodeURIComponent(b.dataset.copy);
+  try{await navigator.clipboard.writeText(text);toast('Skopiowano rozliczenie: wklej je na czat.')}
+  catch(_){toast('Nie udało się skopiować. Zrób zrzut ekranu rozliczenia.')}
+});
+// the game just ended: show everyone the settlement right away
+function openGamesHistory(){histTab='games';$('logBox').hidden=false;$('htHands').classList.remove('on');$('htGames').classList.add('on');$('histHands').style.display='none';$('histGames').hidden=false;loadGames()}
 async function loadGames(){
   const box=$('histGames');
   let list=[];
@@ -812,13 +821,19 @@ function renderGames(list){
   const day=ts=>new Date(ts).toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const rows=ps=>ps.map(p=>`<div class="grow"><span class="gn">${esc(p.name)}</span><span class="gz ${cls(p.net)}">${zl(p.net)}</span>
     <small>wygrane ${zlFmt(p.won*ZL_PER_CHIP)} zł · przegrane ${zlFmt(p.lost*ZL_PER_CHIP)} zł · rozdań ${p.hands}${p.rebuys?` · dokupienia: ${p.rebuys}`:''}${p.leftAt?` · <span class="left">wyjście przed końcem gry: ${tm(p.leftAt)}</span>`:''}</small></div>`).join('');
+  const money=v=>zlFmt(v*ZL_PER_CHIP)+' zł';
+  const settleHtml=(ps,title,label)=>{
+    const tr=settle(ps);
+    const text=`KULAS POKER · ${label}\n`+(tr.length?tr.map(t=>`${t.from} → ${t.to}: ${money(t.amount)}`).join('\n'):'Wszyscy na zero, nikt nikomu nic nie przelewa.');
+    return `<div class="settle"><div class="st-head"><b>💸 ${title}</b><button class="btn st-copy" type="button" data-copy="${esc(encodeURIComponent(text))}">Kopiuj</button></div>${tr.length?tr.map(t=>`<div class="st-row"><span class="st-n">${esc(t.from)} <span class="st-arrow">→</span> ${esc(t.to)}</span><b>${money(t.amount)}</b></div>`).join(''):'<div class="st-zero">Wszyscy na zero, nikt nikomu nic nie przelewa.</div>'}</div>`;
+  };
   let html='';
   const live=Object.entries(s.game||{}).filter(([,r])=>r.hands>0||r.rebuys>0);
   if(live.length){
     const ps=live.map(([id,r])=>({id,name:(P(s,id)||{}).name||r.name,net:r.won-r.lost,won:r.won,lost:r.lost,hands:r.hands,rebuys:r.rebuys||0,leftAt:r.leftAt||null})).sort((a,b)=>b.net-a.net);
-    html+=`<div class="gcard live"><div class="ghead"><b>Trwająca gra</b><span class="livebadge">w trakcie</span><span>od ${s.gameStart?tm(s.gameStart):'—'} · ${s.gameHands||0} rozdań</span></div>${rows(ps)}</div>`;
+    html+=`<div class="gcard live"><div class="ghead"><b>Trwająca gra</b><span class="livebadge">w trakcie</span><span>od ${s.gameStart?tm(s.gameStart):'—'} · ${s.gameHands||0} rozdań</span></div>${rows(ps)}${settleHtml(ps,'Gdyby skończyć teraz, przelewy byłyby takie','rozliczenie na teraz ('+tm(Date.now())+')')}</div>`;
   }
-  html+=list.map(g=>`<div class="gcard"><div class="ghead"><b>${esc(day(g.endedAt))}</b><span>${tm(g.startedAt)}–${tm(g.endedAt)} · ${g.hands} rozdań · ${g.players.length} graczy</span></div>${rows(g.players)}</div>`).join('');
+  html+=list.map(g=>`<div class="gcard"><div class="ghead"><b>${esc(day(g.endedAt))}</b><span>${tm(g.startedAt)}–${tm(g.endedAt)} · ${g.hands} rozdań · ${g.players.length} graczy</span></div>${rows(g.players)}${settleHtml(g.players,'Kto komu przelewa',day(g.endedAt)+', '+tm(g.startedAt)+'–'+tm(g.endedAt))}</div>`).join('');
   box.innerHTML=html||'<div class="lh-empty">Nie ma jeszcze zakończonych gier. Gra trafia tutaj, gdy właściciel kliknie w Menu „Zakończ grę i zapisz w historii”.</div>';
 }
 $('btnMenu').onclick=()=>{$('menuBox').hidden=false;kickAsk=null;renderOwnerPlayers();$('resetConfirm').hidden=true;$('resetBtn').hidden=false};
@@ -833,12 +848,15 @@ $('resetConfirm').onclick=async()=>{
   $('menuBox').hidden=true;
   const ok=await doIt('reset',{},(s,now)=>{const r=endGame(s,now); if(r) demoHistory.unshift(r)});
   if(ok) toast('Gra zakończona i zapisana w historii. Każdy ma znowu 1000 żetonów.');
+  if(ok&&demo) openGamesHistory();
 };
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};
 $('nameInput').oninput=e=>{if(!pendingPhoto)$('photoPreview').textContent=initials(e.target.value)};
 // the owner typed their PIN as the table code: switch on owner mode right away
+// who I am at the table: my account (one per full name), the same on every phone
+function setMe(id){ if(!id) return; if(demo&&demoSaved) demoSaved.me=id; else { if(me!==id){myHole=null;lastBarKey=''} me=id; } }
 async function becomeOwner(pin){
   try{ if(await KP.adminLogin(pin)){ isOwner=true; setOwnerUI(); toast('Witaj, właścicielu stołu! Tryb właściciela jest włączony.'); } }catch(_){}
 }
@@ -846,6 +864,7 @@ async function enterTable(code){
   const r=await KP.send('enter',{code});
   if(!r.ok){toast(r.error||'Zły kod stołu.');return false}
   try{localStorage.setItem('ns-code',code)}catch(_){}
+  setMe(r.account);
   if(r.admin) await becomeOwner(code);
   isMember=true; startLive(); return true;
 }
@@ -861,7 +880,7 @@ $('joinForm').onsubmit=async e=>{
   try{
     const r=await KP.send('join',{name,code});
     if(!r.ok) toast(r.error||'Nie udało się usiąść.');
-    else{ok=true;try{localStorage.setItem('ns-code',code)}catch(_){} if(r.admin) await becomeOwner(code); isMember=true; startLive();}
+    else{ok=true;setMe(r.account);if(state)onServerState(state);try{localStorage.setItem('ns-code',code)}catch(_){} if(r.admin) await becomeOwner(code); isMember=true; startLive();}
   }catch(_){toast('Brak połączenia z serwerem.')}
   if(ok&&pendingPhoto) await savePhoto(pendingPhoto);
   $('joinBtn').disabled=false;
@@ -1045,6 +1064,7 @@ function onServerState(st){
   const prev=state?viewState():null; state=st;
   if(prev) {try{onStateChange(prev,viewState())}catch(_){}}
   render();
+  if(prev&&prev.gameStart&&st&&!st.gameStart&&(prev.gameHands||0)>0){toast('Gra zakończona. Rozliczenie: kto komu przelewa.');setTimeout(openGamesHistory,600)}
   if(st&&st.hand&&st.hand.st&&st.hand.st[me]&&(!myHole||myHole.hand_no!==st.hand.no)) loadMyCards(st.hand.no);
 }
 let cardsLoading=0;
@@ -1123,6 +1143,7 @@ async function boot(){
   if(demo&&demoSaved) demoSaved.isOwner=io; else isOwner=io;
   setOwnerUI();
   isMember=await KP.isMember().catch(()=>false);
+  if(isMember) setMe(KP.account&&KP.account());
   if(isMember) startLive(); else render();
 }
 render();

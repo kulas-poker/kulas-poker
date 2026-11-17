@@ -2,11 +2,11 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleAction } from '../supabase/functions/_shared/core.mjs';
+import { handleAction, cleanName, nameKey } from '../supabase/functions/_shared/core.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const TABLE_CODE = 'TEST', ADMIN_PIN = '1234';
-const db = { history: [], pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
+const db = { accounts: new Map(), acc: new Map(), history: [], pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
 const clients = new Set();
 const onlineUids = new Map(); // uid -> open pages (like Supabase presence)
 const push = (type) => { for (const res of clients) res.write(`data: ${type}\n\n`); };
@@ -14,25 +14,32 @@ const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/ja
 
 function api(route, body, q) {
   if (route === 'send') {
-    const { uid, action, args = {}, pin } = body;
+    const { uid, action, pin } = body; let args = body.args || {};
     const isAdmin = String(pin || '') === ADMIN_PIN;
     if (action === 'adminCheck') return isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false };
     if (action === 'enter' || action === 'join') {
       const typed = String(args.code || '').trim(); var viaPin = typed === ADMIN_PIN;
       if (!viaPin && typed.toUpperCase() !== TABLE_CODE) return { ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' };
       db.members.add(uid);
-      if (action === 'enter') return { ok: true, admin: viaPin || undefined };
+      if (action === 'enter') return { ok: true, admin: viaPin || undefined, account: db.acc.get(uid) || uid };
+      // same name = same account, like the real server
+      const name = cleanName(args.name); if (!name) return { ok: false, error: 'Wpisz imię i nazwisko.' };
+      const key = nameKey(name);
+      if (!db.accounts.has(key)) db.accounts.set(key, { id: 'a-' + Math.random().toString(36).slice(2, 10), name });
+      db.acc.set(uid, db.accounts.get(key).id); args = { ...args, name: db.accounts.get(key).name };
     } else if (!db.members.has(uid)) return { ok: false, error: 'Najpierw wpisz kod stołu.' };
-    const r = handleAction({ publicState: db.pub, secret: db.secret, uid, action, args, isAdmin, now: Date.now() });
+    const player = db.acc.get(uid) || uid;
+    const r = handleAction({ publicState: db.pub, secret: db.secret, uid: player, action, args, isAdmin, now: Date.now() });
     if (r.ok && !r.unchanged) { db.pub = r.state; db.secret = r.secret; if (r.holes) db.holes = r.holes; if (r.archive) db.history.unshift(r.archive); push('state'); }
-    return { ok: r.ok, error: r.error, admin: (r.ok && typeof viaPin !== 'undefined' && viaPin) || undefined };
+    return { ok: r.ok, error: r.error, account: r.ok ? player : undefined, admin: (r.ok && typeof viaPin !== 'undefined' && viaPin) || undefined };
   }
   const uid = q.get('uid');
   if (!db.members.has(uid)) return { error: 'not member' };
+  const me = db.acc.get(uid) || uid;
   if (route === 'state') return { state: db.pub };
-  if (route === 'cards') return db.holes && db.holes.cards[uid] ? { hand_no: db.holes.handNo, cards: db.holes.cards[uid] } : null;
-  if (route === 'chat') { if (body) { db.chat.push({ ...body, uid, at: Date.now() }); push('chat'); return { ok: true }; } return db.chat.slice(-120); }
-  if (route === 'photos') { if (body) { db.photos[uid] = body.photo; push('photos'); return { ok: true }; } return db.photos; }
+  if (route === 'cards') return db.holes && db.holes.cards[me] ? { hand_no: db.holes.handNo, cards: db.holes.cards[me] } : null;
+  if (route === 'chat') { if (body) { db.chat.push({ ...body, uid: me, at: Date.now() }); push('chat'); return { ok: true }; } return db.chat.slice(-120); }
+  if (route === 'photos') { if (body) { db.photos[me] = body.photo; push('photos'); return { ok: true }; } return db.photos; }
   if (route === 'member') return { member: true };
   if (route === 'presence') return { online: [...onlineUids.keys()] };
   if (route === 'history') return db.history.slice(0, 60);
@@ -54,7 +61,7 @@ export function start(port = 0) {
       req.on('data', c => data += c);
       req.on('end', () => {
         const route = u.pathname.slice(5);
-        if (route === 'member') { const uid = u.searchParams.get('uid'); res.end(JSON.stringify({ member: db.members.has(uid) })); return; }
+        if (route === 'member') { const uid = u.searchParams.get('uid'); res.end(JSON.stringify({ member: db.members.has(uid), account: db.acc.get(uid) || uid })); return; }
         const out = api(route, data ? JSON.parse(data) : null, u.searchParams);
         res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
       });

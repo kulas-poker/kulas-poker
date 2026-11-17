@@ -125,12 +125,18 @@ function proceed(s,lastId,now){
   const pending=can.filter(id=>!h.st[id].acted||h.st[id].bet<h.currentBet);
   const done = pending.length===0 || (can.length===1 && h.st[can[0]].bet>=h.currentBet);
   if(!done){h.toAct=nextIn(pending,lastId,h.order);h.turnAt=now;autoFoldTurn(s,now);return}
-  h.order.forEach(id=>{h.st[id].bet=0;h.st[id].acted=false});
+  h.order.forEach(id=>{h.st[id].bet=0;h.st[id].acted=false;delete h.st[id].faced});
   h.currentBet=0; h.minRaise=h.bbAmt; h.last={};
   if(h.stage==='river'){showdown(s);return}
   dealStreet(h);
   if(can.length<=1){while(h.stage!=='river')dealStreet(h);showdown(s);return}
   h.toAct=nextIn(can,h.dealer,h.order); h.turnAt=now; autoFoldTurn(s,now);
+}
+// may this player raise? Not when, since their last move, the bet only grew by an all-in smaller than a full raise
+// (official rule: an incomplete all-in raise does not reopen the betting; they may only call or fold)
+function canRaise(h,id){
+  const st=h&&h.st&&h.st[id]; if(!st) return false;
+  return st.faced===undefined || h.currentBet-st.faced>=h.minRaise;
 }
 function act(s,id,type,amount,now){
   const h=s.hand; if(!h||h.result||h.toAct!==id) return false;
@@ -141,6 +147,7 @@ function act(s,id,type,amount,now){
   else if(type==='check'){if(toCall>0)return false;label='czeka'}
   else if(type==='call'){if(toCall<=0)return false;const a=commit(s,id,toCall);label=st.allIn?`all-in ${a}`:`sprawdza ${a}`}
   else if(type==='raise'){
+    if(!canRaise(h,id)) return false;
     const max=st.bet+p.chips;
     let to=Math.min(Math.floor(amount),max);
     if(to<max) to=Math.floor(to/UNIT)*UNIT;
@@ -152,7 +159,7 @@ function act(s,id,type,amount,now){
     h.order.forEach(o=>{if(o!==id&&!h.st[o].folded&&!h.st[o].allIn)h.st[o].acted=false});
     label=st.allIn?`all-in ${to}`:(wasBet?`stawia ${to}`:`podbija do ${to}`);
   } else return false;
-  st.acted=true; h.last[id]=label; h.clock=now;
+  st.acted=true; st.faced=h.currentBet; h.last[id]=label; h.clock=now;
   addLog(s,`${nm(s,id)}: ${label}`);
   proceed(s,id,now);
   return true;
@@ -282,6 +289,19 @@ function gameRecord(s,now){
       hands:r.hands||0,wins:r.wins||0,best:r.best||0,rebuys:r.rebuys||0,leftAt:r.leftAt||null}))
       .sort((a,b)=>b.net-a.net)};
 }
+// who pays whom at the end of a game: as few transfers as possible (amounts in chips; net values add up to 0)
+function settle(players){
+  const cr=players.filter(p=>p.net>0).map(p=>({id:p.id,name:p.name,a:p.net})).sort((a,b)=>b.a-a.a);
+  const db=players.filter(p=>p.net<0).map(p=>({id:p.id,name:p.name,a:-p.net})).sort((a,b)=>b.a-a.a);
+  const out=[], pay=(d,c,x)=>{out.push({fromId:d.id,from:d.name,toId:c.id,to:c.name,amount:x});d.a-=x;c.a-=x};
+  db.forEach(d=>{const c=cr.find(c=>c.a===d.a); if(c) pay(d,c,d.a)}); // equal amounts: one transfer settles both
+  let i=0,j=0;
+  while(i<db.length&&j<cr.length){
+    if(!db[i].a){i++;continue} if(!cr[j].a){j++;continue}
+    pay(db[i],cr[j],Math.min(db[i].a,cr[j].a));
+  }
+  return out;
+}
 function endGame(s,now){
   const rec=gameRecord(s,now);
   resetGame(s);
@@ -297,4 +317,4 @@ function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został 
 export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
   freshDeck,rnd,shuffle,eval5,best7,newState,migrate,P,nm,addLog,nextIn,commit,handActive,breakdown,
   startHand,drawCard,dealStreet,cardTxt,statRow,recordHand,revealAll,proceed,act,winAll,showdown,foldOut,
-  joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};
+  settle,canRaise,joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};

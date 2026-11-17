@@ -6,6 +6,7 @@ const TABLE = 'main';
 export function createBackend(cfg) {
   const sb = createClient(cfg.url, cfg.anonKey, { auth: { persistSession: true, autoRefreshToken: true } });
   let uid = null;
+  let account = null; // the player's account (one per full name); the same on every phone
   let pin = null;
   let tableCode = null;
   try { pin = localStorage.getItem('kp-admin-pin'); } catch (_) {}
@@ -20,6 +21,7 @@ export function createBackend(cfg) {
       if (body && body.error) return { ok: false, error: body.error };
       throw error;
     }
+    if (data && data.account) account = data.account;
     return data || { ok: false };
   }
 
@@ -32,10 +34,12 @@ export function createBackend(cfg) {
       uid = data.user.id; return uid;
     },
     async isMember() {
-      const { data } = await sb.from('members').select('uid').eq('uid', uid).maybeSingle();
+      const { data } = await sb.from('members').select('uid, account').eq('uid', uid).maybeSingle();
+      if (data) account = data.account || uid;
       return !!data;
     },
     send: (action, args) => call(action, args),
+    account: () => account || uid,
     async restoreAdmin() {
       if (!pin) return false;
       const r = await call('adminCheck', {}, pin).catch(() => ({ ok: false }));
@@ -51,15 +55,15 @@ export function createBackend(cfg) {
     adminLogout() { pin = null; tableCode = null; try { localStorage.removeItem('kp-admin-pin'); } catch (_) {} },
     tableCode: () => tableCode,
     async myCards() {
-      const { data } = await sb.from('hole_cards').select('hand_no, cards').eq('table_id', TABLE).eq('player_id', uid).maybeSingle();
+      const { data } = await sb.from('hole_cards').select('hand_no, cards').eq('table_id', TABLE).eq('player_id', account || uid).maybeSingle();
       return data || null;
     },
     async sendChat(m) {
-      const { error } = await sb.from('chat').insert({ uid, name: m.name, kind: m.kind, text: m.text ?? null, sticker: m.sticker ?? null, gif: m.gif ?? null });
+      const { error } = await sb.from('chat').insert({ uid: account || uid, name: m.name, kind: m.kind, text: m.text ?? null, sticker: m.sticker ?? null, gif: m.gif ?? null });
       if (error) throw error;
     },
     async savePhoto(dataUrl) {
-      const { error } = await sb.from('profiles').upsert({ uid, photo: dataUrl, updated_at: new Date().toISOString() });
+      const { error } = await sb.from('profiles').upsert({ uid: account || uid, photo: dataUrl, updated_at: new Date().toISOString() });
       if (error) throw error;
     },
     async uploadGif(file) {
@@ -98,7 +102,7 @@ export function createBackend(cfg) {
       const all = () => Promise.all([loadState(), loadChat(), loadPhotos(), loadGifs()]).catch(() => {});
 
       // presence: who has the app open right now (a closed browser drops out after a few seconds)
-      const ch = sb.channel('kulas', { config: { presence: { key: uid } } });
+      const ch = sb.channel('kulas', { config: { presence: { key: account || uid } } });
       ch.on('presence', { event: 'sync' }, () => { onPresence && onPresence(Object.keys(ch.presenceState())); })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'games', filter: `id=eq.${TABLE}` },
           p => { if (p.new && p.new.state) onState(p.new.state); })

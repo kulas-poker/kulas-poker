@@ -137,7 +137,8 @@ async function run(width,height,label){
   await p.click('#blindsPill');await p.click('[data-level="25,50"]');await p.waitForTimeout(100);
   ok(pre+'zmiana ciemnych (właściciel)',await ev('viewState().sb===25&&viewState().bb===50'));
   await ev(`$('ownerTools').hidden=false`);await p.click('#btnMenu');await p.click('#resetBtn');await p.click('#resetConfirm');await p.waitForTimeout(150);
-  await p.click('#btnLog');await p.click('#htGames');await p.waitForTimeout(150);
+  ok(pre+'po zakończeniu gry od razu widać rozliczenie',await ev(`!$('logBox').hidden&&!$('histGames').hidden&&$('histGames').textContent.includes('Kto komu przelewa')`));
+  ok(pre+'rozliczenie się bilansuje',await ev(`(()=>{const g=demoHistory[0];const t=settle(g.players);const b={};g.players.forEach(p=>b[p.id]=p.net);t.forEach(x=>{b[x.fromId]+=x.amount;b[x.toId]-=x.amount});return Object.values(b).every(v=>v===0)})()`));
   ok(pre+'Historia → Gry: zakończona gra z datą i graczami',await ev(`document.querySelectorAll('#histGames .gcard:not(.live)').length===1&&document.querySelectorAll('#histGames .gcard:not(.live) .grow').length>=2&&/rozdań/.test($('histGames').textContent)`));
   await p.click('#htHands');await p.click('[data-close="logBox"]');
   ok(pre+'Nowa gra: wszyscy po 1000, bieżący ranking pusty',await ev(`viewState().players.every(p=>p.chips===1000&&p.buyins===1)&&Object.keys(viewState().game).length===0&&Object.keys(viewState().ranking).length>0`));

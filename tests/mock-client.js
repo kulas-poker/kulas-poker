@@ -1,12 +1,14 @@
 // Injected into the page during tests: the same interface as backend.mjs, but talking to mock-server.mjs.
 window.KP_MOCK = (() => {
   const uid = 'u-' + Math.random().toString(36).slice(2, 10);
-  let pin = null;
+  let pin = null, account = null;
   const j = (r, b) => fetch('/api/' + r + (r.includes('?') ? '&' : '?') + 'uid=' + uid, b === undefined ? {} : { method: 'POST', body: JSON.stringify(b) }).then(x => x.json());
   return {
     async init() { return uid; },
-    async isMember() { return (await j('member')).member; },
-    send: (action, args = {}) => j('send', { uid, action, args, pin }),
+    async isMember() { const r = await j('member'); if (r.member) account = r.account; return r.member; },
+    send: async (action, args = {}) => { const r = await j('send', { uid, action, args, pin }); if (r && r.account) account = r.account; return r; },
+    account: () => account || uid,
+    _uid: uid,
     async restoreAdmin() { return false; },
     async adminLogin(p) { const r = await j('send', { uid, action: 'adminCheck', pin: p }); if (r.ok) { pin = p; this._code = r.tableCode; } return !!r.ok; },
     tableCode() { return this._code || null; },
@@ -19,7 +21,7 @@ window.KP_MOCK = (() => {
     history: () => j('history'),
     subscribe({ onState, onChat, onPhotos, onGifs, onPresence }) {
       const load = { presence: async () => onPresence && onPresence((await j('presence')).online || []), state: async () => onState((await j('state')).state), chat: async () => onChat(await j('chat')), photos: async () => onPhotos(await j('photos')) };
-      const es = new EventSource('/api/events?uid=' + uid);
+      const es = new EventSource('/api/events?uid=' + (account || uid));
       es.onmessage = e => load[e.data] && load[e.data]();
       load.state(); load.chat(); load.photos(); load.presence(); onGifs([]);
     },
