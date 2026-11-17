@@ -301,6 +301,9 @@ function layout(s){
 function renderTable(s){
   const h=s.hand, players=s.players;
   const L=layout(s), W=L.W, H=L.H;
+  // a low table (small laptop screen, browser not full screen): smaller seats, so they fit around the cards
+  const phone=innerWidth<=560, full=phone?440:540, few=players.length<=3?40:0;
+  $('room').style.setProperty('--ss',Math.max(.6,Math.min(1,(H+few)/full)).toFixed(3));
   let html='';
   const rev=h&&revealing(h);
   const winIds=new Set(h&&h.result&&!rev?h.result.winners.map(w=>w.id):[]);
@@ -368,7 +371,46 @@ function renderTable(s){
     c+= s.players.length<2 ? `<div class="hint">Czekamy na graczy. Wyślij znajomym link do tej strony.</div>` : `<div class="hint">Gotowe do gry. Kliknij „Rozdaj karty”.</div>`;
   }
   $('center').innerHTML=c;
+  if(keepBoardClear()) placeFelt(L);
   updatePending();
+}
+// nothing may sit on the cards in the middle: a seat that would touch them (picture, name, clock, cards) moves away
+function boardZone(){
+  const room=$('room').getBoundingClientRect();
+  const els=[...document.querySelectorAll('#center .board, #center .pot, #center .banner')];
+  if(!els.length) return null;
+  const r=els.map(e=>e.getBoundingClientRect()).filter(r=>r.width).reduce((u,r)=>u?{left:Math.min(u.left,r.left),top:Math.min(u.top,r.top),right:Math.max(u.right,r.right),bottom:Math.max(u.bottom,r.bottom)}:{left:r.left,top:r.top,right:r.right,bottom:r.bottom},null);
+  if(!r) return null;
+  const pad=8; return {room,left:r.left-pad,top:r.top-pad,right:r.right+pad,bottom:r.bottom+pad};
+}
+function seatBox(seat){
+  const av=seat.querySelector('.av').getBoundingClientRect();
+  const rs=[seat,seat.querySelector('.hole'),seat.querySelector('.seat-clock')].filter(Boolean).map(e=>e.getBoundingClientRect()).filter(r=>r.width);
+  rs.push({left:av.left+av.width/2-34,right:av.left+av.width/2+34,top:av.top-32,bottom:av.top}); // room for the turn clock
+  return rs.reduce((u,r)=>({left:Math.min(u.left,r.left),top:Math.min(u.top,r.top),right:Math.max(u.right,r.right),bottom:Math.max(u.bottom,r.bottom)}));
+}
+function keepBoardClear(){
+  const Z=boardZone(); if(!Z) return false;
+  const R=Z.room; let moved=false;
+  const hit=(b)=>!(b.right<=Z.left||b.left>=Z.right||b.bottom<=Z.top||b.top>=Z.bottom);
+  document.querySelectorAll('#seats .seat[data-id]').forEach(seat=>{
+    const b=seatBox(seat); if(!hit(b)) return;
+    const cx=(b.left+b.right)/2, cy=(b.top+b.bottom)/2, zx=(Z.left+Z.right)/2, zy=(Z.top+Z.bottom)/2;
+    const opts=[
+      {dx:0,dy:cy>=zy?Z.bottom-b.top:Z.top-b.bottom},
+      {dx:cx>=zx?Z.right-b.left:Z.left-b.right,dy:0},
+    ].map(o=>{ // how far the seat would stick out of the table area
+      const over=Math.max(0,R.left-(b.left+o.dx))+Math.max(0,(b.right+o.dx)-R.right)+Math.max(0,R.top-(b.top+o.dy))+Math.max(0,(b.bottom+o.dy)-R.bottom);
+      return {...o,cost:over*4+Math.abs(o.dx)+Math.abs(o.dy)};
+    }).sort((a,c)=>a.cost-c.cost);
+    const o=opts[0];
+    seat.style.left=(parseFloat(seat.style.left)+o.dx/R.width*100)+'%';
+    seat.style.top=(parseFloat(seat.style.top)+o.dy/R.height*100)+'%';
+    const st=document.querySelector(`#seats .pstack[data-for="${CSS.escape(seat.dataset.id)}"]`);
+    if(st){st.style.left=seat.style.left;st.style.top=seat.style.top}
+    moved=true;
+  });
+  return moved;
 }
 // put each player's chip stack, and their bet further in, on the felt between the seat and the middle
 function placeFelt(L){
