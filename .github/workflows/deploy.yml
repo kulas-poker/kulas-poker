@@ -60,10 +60,11 @@ jobs:
       - name: Baza danych
         # newer CLI versions default to a local database, so point it at the real project explicitly
         run: |
+          yes_flag=""; supabase db push --help 2>&1 | grep -q -- '--yes' && yes_flag="--yes"
           if supabase db push --help 2>&1 | grep -q -- '--remote'; then
-            supabase db push --remote --include-all
+            supabase db push --remote --include-all $yes_flag
           else
-            supabase db push --linked --include-all
+            supabase db push --linked --include-all $yes_flag
           fi
       - name: PIN właściciela i kod stołu
         env:
