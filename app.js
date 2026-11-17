@@ -176,7 +176,7 @@ function renderFeed(s){
   } else if(h&&h.result&&revealing(h)) head='Krupier odkrywa karty…';
   else if(h&&h.result) head='Rozdanie zakończone: '+h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> +${w.amount}`).join(', ');
   else head=s.players.length<2?'Czekamy na graczy':'Czekamy na rozdanie';
-  const full=(h&&revealing(h)&&boardAnim.logLen!=null)?(s.log||[]).slice(0,boardAnim.logLen):(s.log||[]);
+  const all=s.log||[], full=(h&&revealing(h)&&boardAnim.hide)?all.slice(0,Math.max(0,all.length-boardAnim.hide)):all;
   const log=full.slice(-16).reverse();
   const sig=full.length+'|'+(log[0]||'');
   const fresh=sig!==lastFeedSig&&lastFeedSig!==''; lastFeedSig=sig;
@@ -441,7 +441,7 @@ function flyChips(from,to,amount,delay=0){
 }
 const CENTER={x:50,y:47};
 // flop: three cards face down one after another, turned over together a second later; turn and river the same
-function startBoardAnim(h,from,logLen){
+function startBoardAnim(h,from,hide){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   const now=Date.now(), cards={}; let t=now+250;
   const groups=[[0,1,2],[3],[4]].map(g=>g.filter(i=>i>=from&&i<h.board.length)).filter(g=>g.length);
@@ -454,7 +454,7 @@ function startBoardAnim(h,from,logLen){
     t=flipAt+700;
   });
   const end=t-700+450;
-  boardAnim={no:h.no,cards,end,logLen};
+  boardAnim={no:h.no,cards,end,hide};
   setTimeout(()=>{lastBarKey='';render()},end-now+30);
 }
 function onStateChange(prev,next){
@@ -487,7 +487,11 @@ function onStateChange(prev,next){
   // street ended: bets slide into the pot
   const streetEnded = ph.stage!==nh.stage || (!ph.result&&nh.result);
   if(streetEnded) nh.order.forEach(id=>{const a=ph.st[id], b=nh.st[id], p=pos(id); const amt=a?a.bet:0; if(p&&amt>0) flyChips({x:p.bx,y:p.by},CENTER,amt,chipSound?350:0)});
-  if(nh.board.length>ph.board.length) startBoardAnim(nh,ph.board.length,(ph.log||[]).length);
+  if(nh.board.length>ph.board.length){
+    // entries written at the same moment (e.g. who won) stay hidden until the cards are turned over
+    const pl=prev.log||[], nl=next.log||[], pos=pl.length?nl.lastIndexOf(pl[pl.length-1]):-1;
+    startBoardAnim(nh,ph.board.length,pos>=0?nl.length-1-pos:0);
+  }
   const wait=Math.max(0,revealEnd(nh)-Date.now());
   // hand finished: pot goes to the winners
   if(!ph.result&&nh.result){

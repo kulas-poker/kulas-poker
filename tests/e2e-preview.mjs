@@ -99,6 +99,7 @@ async function run(width,height,label){
   await ev(`mutate((s,now)=>{let g=0;while(handActive(s)&&s.hand.stage==='preflop'&&g++<20){const h=s.hand,id=h.toAct;act(s,id,h.currentBet-h.st[id].bet>0?'call':'check',0,now)}return true})`);
   await p.waitForTimeout(150);
   if(await ev('viewState().hand.board.length===3&&handActive(viewState())')){
+    ok(pre+'dziennik działa w trakcie odkrywania kart',await ev(`$('feed').querySelectorAll('.flist li:not(.sep)').length>0||innerWidth<860`));
     ok(pre+'flop: 3 karty najpierw zakryte',await ev(`document.querySelectorAll('#center .board .card.back').length===3`));
     await p.waitForTimeout(1900);
     ok(pre+'po sekundzie odkryte wszystkie naraz',await ev(`document.querySelectorAll('#center .board .card.back').length===0&&document.querySelectorAll('#center .board .card:not(.slot)').length===3`));
