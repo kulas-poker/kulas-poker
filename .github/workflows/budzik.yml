@@ -1,0 +1,25 @@
+# Supabase (free plan) puts a project to sleep after about a week without use.
+# This asks the database a small question every 2 days so the table stays awake between game nights.
+# If the server does not answer, this run fails and GitHub sends the repository owner an e-mail.
+name: Budzik serwera
+
+on:
+  schedule:
+    - cron: '17 6 */2 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Zapytanie do bazy danych
+        run: |
+          KEY=$(sed -n "s/.*anonKey: '\(.*\)'.*/\1/p" config.mjs)
+          URL=$(sed -n "s/.*url: '\(.*\)'.*/\1/p" config.mjs)
+          code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/games?select=id&limit=1" -H "apikey: $KEY" -H "Authorization: Bearer $KEY")
+          echo "Odpowiedź serwera: HTTP $code"
+          if [ "$code" != "200" ]; then
+            echo "::error::Serwer gry nie odpowiada (HTTP $code). Otwórz Supabase i sprawdź, czy projekt nie jest uśpiony (przycisk Restore project)."
+            exit 1
+          fi

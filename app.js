@@ -840,10 +840,10 @@ async function boot(){
   try{const n=localStorage.getItem('ns-name');if(n){$('nameInput').value=n;$('photoPreview').textContent=initials(n)}}catch(_){}
   try{const c=localStorage.getItem('ns-code');if(c)$('codeInput').value=c}catch(_){}
   KP=await (window.KP_READY||Promise.resolve(null));
-  if(!KP){render();toast('Nie udało się połączyć z serwerem gry. Sprawdź internet.');return}
+  if(!KP){render();toast('Nie można połączyć się z serwerem gry. Jeśli internet działa, serwer mógł zostać uśpiony: daj znać właścicielowi stołu.');return}
   let uid;
   try{ uid=await KP.init(); serverOk=true; }
-  catch(e){ console.error(e); toast('Nie udało się połączyć z serwerem gry.'); render(); return; }
+  catch(e){ console.error(e); toast('Nie można połączyć się z serwerem gry. Jeśli internet działa, serwer mógł zostać uśpiony: daj znać właścicielowi stołu.'); render(); return; }
   if(demo&&demoSaved) demoSaved.me=uid; else me=uid;
   const io=await KP.restoreAdmin().catch(()=>false);
   if(demo&&demoSaved) demoSaved.isOwner=io; else isOwner=io;
