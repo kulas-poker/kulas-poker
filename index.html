@@ -157,15 +157,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .card.deal{animation:deal .35s ease-out}
 @keyframes deal{from{transform:translateY(-14px);opacity:0}to{transform:none;opacity:1}}
 
-/* chips: side-view stacks */
-.stacks{display:inline-flex;align-items:flex-end;gap:2px}
-.stk{display:flex;flex-direction:column-reverse}
-.d{display:block;width:18px;height:6px;border-radius:3px/50%;margin-top:-2px;position:relative;
-  background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 45%,rgba(0,0,0,.3)),repeating-linear-gradient(90deg,var(--cc) 0 3.5px,var(--ce) 3.5px 5.5px);
-  box-shadow:0 1px 0 rgba(0,0,0,.45)}
-.d5{--cc:var(--c5);--ce:var(--e5)}.d10{--cc:var(--c10);--ce:var(--e10)}.d25{--cc:var(--c25);--ce:var(--e25)}.d50{--cc:var(--c50);--ce:var(--e50)}.d100{--cc:var(--c100);--ce:var(--e100)}
-.d200{background:linear-gradient(180deg,rgba(255,255,255,.55),transparent 40%,rgba(80,50,0,.35)),repeating-linear-gradient(90deg,#e8c22a 0 3.5px,#fbf6e2 3.5px 5.5px)}
-.stacks.big .d{width:22px;height:7px}
 
 /* seats */
 .seat{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:3px;width:clamp(78px,22vw,120px);z-index:3}
@@ -193,16 +184,14 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .bet{position:absolute;transform:translate(-50%,-50%);z-index:2;display:flex;align-items:flex-end;gap:4px;font-weight:700;font-size:12px;font-variant-numeric:tabular-nums;color:var(--fg)}
 .bet b{background:rgba(6,14,24,.7);border-radius:6px;padding:1px 5px}
 .room.pending-on .bet.mine{opacity:0}
+@media (max-width:560px){.room.pending-on .seat.me .seat-clock{visibility:hidden}}
 /* each player's chips on the felt */
 .pstack{position:absolute;transform:translate(-50%,-50%);z-index:2;pointer-events:none;filter:drop-shadow(0 3px 3px rgba(0,0,0,.45))}
-.pstack .stacks{gap:3px}
-.pstack .d{width:20px;height:7px;margin-top:-3px}
-@media (max-width:560px){.pstack .d{width:14px;height:5px;margin-top:-2px}.pstack .stacks{gap:2px}}
 /* chips I am about to bet */
 .pending{position:absolute;transform:translate(-50%,-50%);z-index:7;display:flex;align-items:center;gap:8px;padding:6px 8px 6px 10px;border-radius:14px;
   background:rgba(6,14,24,.82);border:1.5px dashed var(--brass);box-shadow:0 0 0 3px rgba(217,181,108,.15),0 8px 20px rgba(0,0,0,.45);animation:pendin .2s ease-out}
 @keyframes pendin{from{transform:translate(-50%,-50%) scale(.85);opacity:0}}
-.pending .pend-chips{display:flex;align-items:flex-end}
+.pending .pend-chips{display:flex;align-items:flex-end;min-height:30px}
 .pending .pend-amt{font:800 20px/1 var(--f-display);color:var(--brass);font-variant-numeric:tabular-nums;white-space:nowrap}
 .pending .pend-amt small{display:block;font:600 10px var(--f-body);color:var(--muted);margin-top:2px}
 .pending .pend-go{padding:10px 16px;font-size:15px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;border-radius:10px}
@@ -243,7 +232,6 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
   .pending .pend-amt{font-size:16px}
   .pending .pend-amt small{display:none}
   .pending .pend-go{padding:7px 11px;font-size:13px}
-  .pending .stacks.big .d{width:16px;height:6px}
   .top{flex-wrap:nowrap;gap:6px;padding-block:6px}
   .brand{font-size:18px;letter-spacing:.03em;white-space:nowrap}
   .brand small,.rate{display:none}
@@ -316,7 +304,31 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .rack .tok{--sz:min(58px,13.5vw)}
 .rack .tok span{font-size:clamp(13px,3.6vw,17px)}
 .me-panel:not(.myturn) .rack{opacity:.45}
-.stake{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
+.stake{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:8px;align-items:end}
+.stake input,.stake .btn{align-self:stretch;max-height:56px}
+.stake-pile{display:flex;align-items:flex-end;min-height:20px}
+/* chip piles: a disc with a striped edge, many stacked; --cw sets the chip width */
+.pile{--cw:22px;display:inline-flex;align-items:flex-end;gap:calc(var(--cw)*-.12);filter:drop-shadow(0 3px 2px rgba(0,0,0,.45))}
+.pcol{display:flex;flex-direction:column-reverse;align-items:center}
+.pc{position:relative;display:block;width:var(--cw);height:calc(var(--cw)*.42);border-radius:50%;flex:none;
+  background:linear-gradient(180deg,transparent 35%,rgba(0,0,0,.38) 100%),repeating-linear-gradient(90deg,var(--cc) 0 calc(var(--cw)*.17),var(--ce) calc(var(--cw)*.17) calc(var(--cw)*.26));
+  box-shadow:0 1px 0 rgba(0,0,0,.55)}
+.pc::before{content:"";position:absolute;left:0;right:0;top:0;height:calc(var(--cw)*.3);border-radius:50%;
+  background:radial-gradient(ellipse at 50% 50%,var(--cc) 0 34%,var(--ce) 35% 44%,var(--cc) 45% 74%,var(--ce) 75% 82%,var(--cc) 83%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),inset 0 -1px 1px rgba(0,0,0,.25)}
+.pc+.pc{margin-bottom:calc(var(--cw)*-.29)}
+.pc5{--cc:#c4202b;--ce:#f6f1e6}.pc10{--cc:#1d4fae;--ce:#f6f1e6}.pc25{--cc:#167a3c;--ce:#f6f1e6}
+.pc50{--cc:#e2711a;--ce:#1b1b1d}.pc100{--cc:#1c1c20;--ce:#f6f1e6}.pc200{--cc:#d9ad2c;--ce:#fff3c2}
+.pc200::before{background:radial-gradient(ellipse at 50% 50%,#fff1a8 0 30%,#d9ad2c 34%,#fff3c2 35% 44%,#e8c22a 45% 74%,#fff3c2 75% 82%,#d9ad2c 83%)}
+.pc.drop{animation:chipdrop .28s cubic-bezier(.3,.7,.4,1.4) both}
+@keyframes chipdrop{from{transform:translateY(calc(var(--cw)*-1.6));opacity:0}}
+@media (prefers-reduced-motion:reduce){.pc.drop{animation:none}}
+.pile.player{--cw:22px}
+.pot .pile{--cw:26px}
+.bet .pile{--cw:20px}
+.pile.pend{--cw:30px}
+.pile.panel{--cw:28px}
+@media (max-width:560px){.pile.player{--cw:15px}.bet .pile{--cw:15px}.pot .pile{--cw:18px}.pile.pend{--cw:22px}.pile.panel{--cw:22px}}
 .me-strip .postaw{flex:none;min-height:56px;padding:0 22px;border-radius:14px;font:800 19px/1 var(--f-body);letter-spacing:.04em;text-transform:uppercase;box-shadow:0 3px 0 rgba(0,0,0,.4),0 0 14px rgba(217,181,108,.35)}
 .me-strip .postaw:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.4)}
 @media (max-width:560px){.myturn .me-strip .stackv{display:none}.me-strip .postaw{padding:0 14px;font-size:16px;min-height:52px}.myturn .me-strip .who b{font-size:13px}}
@@ -535,7 +547,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 @media (min-width:700px){.shuffler .cb{width:54px;height:76px;margin:-38px 0 0 -27px}}
 .shuffler .half.l{animation:riffL .8s ease-in-out 2}
 .shuffler .half.r{animation:riffR .8s ease-in-out 2}
-.shuffler .pile{animation:squareup 1.9s ease-in-out both}
+.shuffler .deck{animation:squareup 1.9s ease-in-out both}
 .shuffler.out{animation:shufout .35s ease-in both}
 @keyframes riffL{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(-46px,6px) rotate(-14deg)}55%{transform:translate(-46px,6px) rotate(-6deg)}80%{transform:translate(-6px,0) rotate(-2deg)}}
 @keyframes riffR{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(46px,6px) rotate(14deg)}55%{transform:translate(46px,6px) rotate(6deg)}80%{transform:translate(6px,0) rotate(2deg)}}

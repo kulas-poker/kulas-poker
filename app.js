@@ -28,7 +28,7 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const TAB=Math.random().toString(36).slice(2,8);
 let KP=null,me=null,isOwner=false,myHole=null,serverOk=false,isMember=false,live=false;
-const SHUF_MS=1900, DEAL_STEP=230; let dealPlan=null, boardAnim=null, demoHistory=[], histTab='hands', feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
+const SHUF_MS=1900, DEAL_STEP=230; let betChips=[], justDropped=false, dealPlan=null, boardAnim=null, demoHistory=[], histTab='hands', feltPos={}, lastFeedSig='', shuffleUntil=0, tut=null, demo=false,demoSaved=null,lastRealState=null,lastRealMsgs=[],betAmt=0,dealAnimNo=-1,state=null,photos={},watching=false,pendingPhoto=null,busy=false,lastBarKey='',raiseVal=0,lastBoardLen=0;
 let messages=[],chatOpen=false,pickerTab=null,gifLib=[],lastSeen=0,firstChatLoad=true;
 try{lastSeen=+localStorage.getItem('ns-seen')||0}catch(_){}
 
@@ -41,20 +41,59 @@ function cardHtml(c,cls=''){
   return `<div class="card ${red?'red':''} ${cls}" aria-label="${r}${s}">${r}<span class="s">${s}</span></div>`;
 }
 function chipFace(d){return `<span class="holo"></span><i class="st s1">♠</i><i class="st s2">♥</i><i class="st s3">♣</i><i class="st s4">♦</i><span class="core"><b>${d}</b></span>`}
-function stacksHtml(amount,maxCols=3,maxH=5,cls=''){
-  if(!amount) return '';
-  return `<span class="stacks ${cls}" aria-hidden="true">${breakdown(amount).slice(0,maxCols).map(([d,c])=>`<span class="stk">${('<i class="d d'+d+'"></i>').repeat(Math.min(c,maxH))}</span>`).join('')}</span>`;
+// chips drawn as real piles: each chip is a disc with a striped edge, stacked on top of each other
+function pileCols(cols,cls=''){
+  cols=cols.filter(c=>c.length); if(!cols.length) return '';
+  return `<span class="pile ${cls}" aria-hidden="true">${cols.map(col=>`<span class="pcol">${col.map(d=>`<i class="pc pc${d}"></i>`).join('')}</span>`).join('')}</span>`;
 }
-// a player's chips drawn as casino stacks: more chips, taller stacks; mixed denominations
+// a natural set of chips for an amount: they add up exactly, and a bigger amount makes a taller pile
+const SPLIT={200:[100,100],100:[50,50],50:[25,25],25:[10,10,5],10:[5,5]};
+function chipList(amount){
+  amount=Math.floor(amount||0); if(amount<=0) return [];
+  const list=breakdown(amount).flatMap(([d,c])=>Array(c).fill(d));
+  const want=Math.max(1,Math.min(16,Math.round(Math.log2(Math.max(1,amount/5))*1.4)));
+  while(list.length<want){
+    const i=list.findIndex(d=>SPLIT[d]); if(i<0) break;
+    list.splice(i,1,...SPLIT[list[i]]); list.sort((a,b)=>b-a);
+  }
+  return list; // biggest first = bottom of the pile
+}
+// one mixed pile (a new pile next to it every `h` chips)
+function listPile(list,h=10,cls=''){const cols=[];for(let i=0;i<list.length;i+=h)cols.push(list.slice(i,i+h));return pileCols(cols,cls)}
+// the pot: the dealer keeps it sorted, one pile per colour
+function potPileHtml(amount){
+  const cols=[]; chipList(amount).forEach(d=>{let c=cols.find(x=>x[0]===d&&x.length<8); if(!c) cols.push(c=[]); c.push(d)});
+  return pileCols(cols.slice(0,7));
+}
+// chips in front of a player this betting round; mine are exactly the chips I put in (in the order I clicked them)
+let placed=null;
+function tableChips(id,h,amount){
+  if(id===me&&placed&&placed.no===h.no&&placed.stage===h.stage){
+    const sum=placed.chips.reduce((a,b)=>a+b,0);
+    if(sum===amount) return placed.chips;
+    if(sum<amount) return placed.chips.concat(chipList(amount-sum));
+  }
+  return chipList(amount);
+}
+// a player's chips: more chips, taller piles; mixed denominations like a real stack in front of a player
 function playerStackHtml(chips){
   if(!chips) return '';
   const parts=[]; let rem=chips;
   for(const d of DENOMS){let c=Math.floor(rem/d); if(d!==5&&c>1) c=Math.max(1,Math.ceil(c*0.6)); for(let i=0;i<c;i++) parts.push(d); rem-=c*d;}
   const n=Math.max(1,Math.min(15,Math.ceil(chips/100)));
   const pick=parts.length<=n?parts:Array.from({length:n},(_,i)=>parts[Math.floor(i*parts.length/n)]);
-  const cols=[]; pick.forEach(d=>{const c=cols.find(x=>x.d===d); if(c) c.n++; else cols.push({d,n:1})});
-  while(cols.length>3){const a=cols.pop(); cols[cols.length-1].mix=(cols[cols.length-1].mix||[]).concat(Array(a.n).fill(a.d)).concat(a.mix||[])}
-  return `<span class="stacks" aria-hidden="true">${cols.map(c=>`<span class="stk">${('<i class="d d'+c.d+'"></i>').repeat(c.n)}${(c.mix||[]).map(d=>'<i class="d d'+d+'"></i>').join('')}</span>`).join('')}</span>`;
+  const cols=[]; pick.forEach(d=>{const c=cols.find(x=>x[0]===d); if(c) c.push(d); else cols.push([d])});
+  while(cols.length>3){const a=cols.pop(); cols[cols.length-1].push(...a)}
+  return pileCols(cols.map(c=>c.slice().reverse()),'player');
+}
+// the chips I am putting in: exactly the chips I clicked, in order, growing upwards
+function betPileHtml(cls){
+  const list=betChips&&betChips.length?betChips:chipList(betAmt);
+  if(!list.length) return '';
+  const cols=[]; for(let i=0;i<list.length;i+=10) cols.push(list.slice(i,i+10));
+  let html=pileCols(cols,cls);
+  if(justDropped) html=html.replace(/<i class="pc pc(\d+)"><\/i><\/span><\/span>$/,'<i class="pc pc$1 drop"></i></span></span>');
+  return html;
 }
 // dealing: one card at a time, starting left of the dealer, first round then second round
 function dealDelay(id,ci){
@@ -301,7 +340,7 @@ function renderTable(s){
     </div>`;
     if(p.chips>0) html+=`<div class="pstack" data-for="${esc(p.id)}" style="left:${x}%;top:${y}%">${playerStackHtml(p.chips)}</div>`;
     if(st&&st.bet>0){
-      html+=`<div class="bet ${isMe?'mine':''}" data-for="${esc(p.id)}" style="left:${bx}%;top:${by}%">${stacksHtml(st.bet,4,6)}<b>${st.bet}</b></div>`;
+      html+=`<div class="bet ${isMe?'mine':''}" data-for="${esc(p.id)}" style="left:${bx}%;top:${by}%">${listPile(tableChips(p.id,h,st.bet))}<b>${st.bet}</b></div>`;
     }
   });
   $('seats').innerHTML=html;
@@ -321,7 +360,7 @@ function renderTable(s){
     c+=`<div class="board">${slots}</div>`;
     if(h.result&&!rev){
       c+=`<div class="banner">${h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> wygrywa ${w.amount}${w.hand?` · ${esc(w.hand)}`:''}`).join('<br>')}</div>`;
-    } else c+=`<div class="pot">${stacksHtml(h.pot,6,8,'big')}<div><div class="lbl">Pula</div>${h.pot}</div></div>`;
+    } else c+=`<div class="pot">${potPileHtml(h.pot)}<div><div class="lbl">Pula</div>${h.pot}</div></div>`;
   } else {
     lastBoardLen=0;
     c+= s.players.length<2 ? `<div class="hint">Czekamy na graczy. Wyślij znajomym link do tej strony.</div>` : `<div class="hint">Gotowe do gry. Kliknij „Rozdaj karty”.</div>`;
@@ -353,6 +392,18 @@ function placeFelt(L){
     const dS=Math.min(reach+6+ext(stack), limit);
     const dB=Math.min(dS+ext(stack)+10+Math.max(ext(bet),22), limit+28);
     const put=(el,d)=>{const X=(px+dx*d)/R.width*100, Y=(py+dy*d)/R.height*100; if(el){el.style.left=X+'%';el.style.top=Y+'%'} return {x:X,y:Y}};
+    // my own seat sits at the bottom, right under the pot: there is no room between them (the turn clock lives there),
+    // so my pile goes to the right of my picture and my bet to the left of it (where the "Postaw" box appears)
+    if(id===me&&dy<-.8){
+      const wOf=el=>el?el.getBoundingClientRect().width:0, sw=wOf(stack), bw=Math.max(wOf(bet),34);
+      const sx=a.right-R.left+10+sw/2, bxx=a.left-R.left-10-bw/2;
+      if(sx+sw/2<=R.width-4&&bxx-bw/2>=4){
+        const at=(el,x,y)=>{const X=x/R.width*100, Y=y/R.height*100; if(el){el.style.left=X+'%';el.style.top=Y+'%'} return {x:X,y:Y}};
+        const sp=at(stack,sx,py+4), bp=at(bet,bxx,py);
+        feltPos[id]={sx:sp.x, sy:sp.y, bx:bp.x, by:bp.y, ax:px/R.width*100, ay:py/R.height*100};
+        return;
+      }
+    }
     put(stack,dS); const bp=put(bet,dB);
     feltPos[id]={sx:(px+dx*dS)/R.width*100, sy:(py+dy*dS)/R.height*100, bx:bp.x, by:bp.y, ax:px/R.width*100, ay:py/R.height*100};
   });
@@ -365,7 +416,7 @@ function updatePending(){
   const pos=feltPos[me];
   if(!myTurn||!betAmt||!pos){el.hidden=true;$('room').classList.remove('pending-on');return}
   const st=h.st[me];
-  el.innerHTML=`<div class="pend-chips">${stacksHtml(betAmt,4,8,'big')}</div>
+  el.innerHTML=`<div class="pend-chips">${betPileHtml('pend')}</div>
     <div class="pend-amt">+${betAmt}${st.bet?`<small>razem ${st.bet+betAmt}</small>`:''}</div>
     <button class="btn primary pend-go" data-a="bet" type="button">Postaw</button>
     <button class="pend-x" data-clear="1" type="button" aria-label="Wyczyść stawkę">✕</button>`;
@@ -375,8 +426,8 @@ function updatePending(){
   const a=av?av.getBoundingClientRect():null, w=el.offsetWidth, hgt=el.offsetHeight;
   if(a&&a.left-room.left-14>=w+6){
     el.style.left=(a.left-room.left-14-w/2)/room.width*100+'%'; el.style.top=(a.top-room.top+a.height/2)/room.height*100+'%';
-  } else if(a){
-    el.style.left=(a.left-room.left+a.width/2)/room.width*100+'%'; el.style.top=(a.top-room.top-10-hgt/2)/room.height*100+'%';
+  } else if(a){ // phone: just above my picture (the turn clock is shown in the top bar then), so the pot stays visible
+    el.style.left=(a.left-room.left+a.width/2)/room.width*100+'%'; el.style.top=(a.top-room.top-4-hgt/2)/room.height*100+'%';
   } else { el.style.left=pos.bx+'%'; el.style.top=pos.by+'%'; }
 }
 
@@ -424,7 +475,7 @@ function playShuffle(){
   const room=$('room'); const old=room.querySelector('.shuffler'); if(old) old.remove();
   const half=(cls)=>`<div class="half ${cls}">${[0,1,2,3,4,5,6,7].map(i=>`<i class="cb" style="transform:translate(${(cls==='l'?-1:1)*i*.7}px,${-i*2}px)"></i>`).join('')}</div>`;
   const el=document.createElement('div'); el.className='shuffler';
-  el.innerHTML=`<div class="pile">${half('l')}${half('r')}</div>`;
+  el.innerHTML=`<div class="deck">${half('l')}${half('r')}</div>`;
   room.appendChild(el); room.classList.add('shuffling');
   setTimeout(()=>{el.classList.add('out')},SHUF_MS-150);
   setTimeout(()=>{el.remove();room.classList.remove('shuffling')},SHUF_MS+250);
@@ -434,7 +485,7 @@ function playShuffle(){
 function flyChips(from,to,amount,delay=0){
   if(!amount) return;
   const el=document.createElement('div'); el.className='flychips';
-  el.innerHTML=stacksHtml(amount,3,4); el.style.left=from.x+'%'; el.style.top=from.y+'%';
+  el.innerHTML=listPile(chipList(amount),10); el.style.left=from.x+'%'; el.style.top=from.y+'%';
   $('room').appendChild(el);
   setTimeout(()=>{requestAnimationFrame(()=>{el.style.left=to.x+'%';el.style.top=to.y+'%';el.style.opacity='0'})},delay+20);
   setTimeout(()=>el.remove(),delay+900);
@@ -534,7 +585,9 @@ function updateBetUI(){
   const i=$('betInput'); if(i&&document.activeElement!==i) i.value=betAmt||'';
   const mx=i?+i.dataset.max:0;
   document.querySelectorAll('.tok[data-add]').forEach(t=>t.disabled=betAmt+ +t.dataset.add>mx);
+  const sp=$('stakePile'); if(sp) sp.innerHTML=betPileHtml('panel');
   updatePending();
+  justDropped=false;
 }
 function renderBar(s){
   const h=s.hand, meP=mySeat()?P(s,me):null;
@@ -552,7 +605,7 @@ function renderBar(s){
     const canShow=!!(h&&h.result&&!h.result.showdown&&h.st&&h.st[me]&&!(h.shown&&h.shown[me]));
     const lockLeft=h&&h.result&&h.result.at?Math.ceil((HL_MS-(Date.now()-resultBase(h)))/1000):0;
     key=`p${lockLeft>0?lockLeft:0}${live}${myTurn}${h?h.no:0}${h?h.stage:''}${h?h.currentBet:0}${st?st.bet:0}${meP.chips}${late}${st&&st.folded}${elig}${canShow}${photos[me]?1:0}${meP.away?'a':''}${meP.autoFold?'f':''}`;
-    if(myTurn && key!==lastBarKey) betAmt=0;
+    if(myTurn && key!==lastBarKey){betAmt=0;betChips=[]}
     const who=live&&h.toAct?esc(nm(s,h.toAct)):'';
     if(meP.autoFold&&!meP.away) status = 'Automatyczny fold włączony: pasujesz w każdej kolejce.';
     else if(meP.away) status = live?`Obserwujesz. Ruch: <b>${who}</b>`:'Obserwujesz grę.';
@@ -570,7 +623,7 @@ function renderBar(s){
     let rest='';
     if(myTurn){
       rest=`<div class="need">Do sprawdzenia: <b>${toCall}</b>${meP.chips>toCall?` · min. podbicie: <b>${Math.min(minRaiseAdd,meP.chips)}</b>`:''}</div>
-      <div class="stake"><input type="number" id="betInput" inputmode="numeric" min="0" step="${UNIT}" data-max="${meP.chips}" placeholder="0" aria-label="Kwota do postawienia"><button class="btn" data-clear="1" type="button">Wyczyść</button></div>
+      <div class="stake"><div class="stake-pile" id="stakePile"></div><input type="number" id="betInput" inputmode="numeric" min="0" step="${UNIT}" data-max="${meP.chips}" placeholder="0" aria-label="Kwota do postawienia"><button class="btn" data-clear="1" type="button">Wyczyść</button></div>
       <div class="big-acts">
         <button class="btn fold" data-a="fold" type="button">Fold</button>
         ${toCall>0?`<button class="btn call" data-a="call" type="button">Call<small>${toCall}</small></button>`:`<button class="btn call" data-a="check" type="button">Check</button>`}
@@ -677,8 +730,8 @@ async function uploadGif(file){
 // ---------- events ----------
 document.addEventListener('click',async e=>{
   const close=e.target.closest('[data-close]'); if(close){$(close.dataset.close).hidden=true;return}
-  const add=e.target.closest('[data-add]'); if(add){const i=$('betInput');if(!i)return;betAmt=Math.min(+i.dataset.max,betAmt+ +add.dataset.add);if(document.activeElement===i)i.blur();updateBetUI();SFX.chip(1);return}
-  if(e.target.closest('[data-clear]')){betAmt=0;const i=$('betInput');if(i)i.value='';updateBetUI();return}
+  const add=e.target.closest('[data-add]'); if(add){const i=$('betInput');if(!i)return;const d=+add.dataset.add;if(betAmt+d>+i.dataset.max)return;betAmt+=d;betChips=(betChips||[]).concat(d);justDropped=true;if(document.activeElement===i)i.blur();updateBetUI();SFX.chip(1);return}
+  if(e.target.closest('[data-clear]')){betAmt=0;betChips=[];const i=$('betInput');if(i)i.value='';updateBetUI();return}
   const lv=e.target.closest('[data-level]'); if(lv){const [a,b]=lv.dataset.level.split(',').map(Number);
     await doIt('blinds',{sb:a,bb:b},s=>setBlinds(s,a,b));$('blindsBox').hidden=true;return}
   const pt=e.target.closest('[data-ptab]'); if(pt){const v=pt.dataset.ptab;pickerTab=isNaN(+v)?v:+v;renderPicker();return}
@@ -706,11 +759,12 @@ document.addEventListener('click',async e=>{
     else if(amt<toCall){toast(`Za mało. Do sprawdzenia: ${toCall}.`);return}
     else if(amt===toCall) type='call';
     else { to=st.bet+amt; if(to<h.currentBet+h.minRaise){toast(`Za małe podbicie. Postaw ${toCall} (call) albo co najmniej ${h.currentBet+h.minRaise-st.bet}.`);return} type='raise'; }
+    if(amt>0) placed={no:h.no,stage:h.stage,chips:tableChips(me,h,st.bet).concat(betChips&&betChips.length?betChips:chipList(Math.min(amt,p.chips)))};
     return doIt('act',{type,amount:to},(ns,now)=>act(ns,me,type,to,now));
   }
   if(['fold','check','call','allin'].includes(a)) return doIt('act',{type:a},(s,now)=>act(s,me,a,0,now));
 });
-document.addEventListener('input',e=>{if(e.target.id==='betInput'){betAmt=Math.max(0,Math.floor(+e.target.value||0));updateBetUI()}});
+document.addEventListener('input',e=>{if(e.target.id==='betInput'){betAmt=Math.max(0,Math.floor(+e.target.value||0));betChips=null;updateBetUI()}});
 document.addEventListener('keydown',e=>{if(e.target.id==='betInput'&&e.key==='Enter'){e.preventDefault();const b=document.querySelector('[data-a="bet"]');if(b)b.click()}});
 $('fab').onclick=()=>setChat(true);
 $('btnMute').onclick=()=>{muted=!muted;try{localStorage.setItem('ns-mute',muted?'1':'0')}catch(_){}setMuteUI();if(!muted){ac();setTimeout(()=>SFX.chip(2),30)}};
@@ -939,8 +993,8 @@ function showStep(){
     <div class="tut-nav">${st.last?'':'<button class="skip" type="button" data-tut="skip">Pomiń</button>'}
       ${tut.i>0?'<button class="btn" type="button" data-tut="back">Wstecz</button>':''}
       <button class="btn primary" type="button" data-tut="${st.last?'end':'next'}">${st.last?'Zagraj':'Dalej'}</button></div>`;
-  if(st.demo==='chips'){betAmt=0;updateBetUI();[25,50].forEach((v,k)=>tut.timers.push(setTimeout(()=>{betAmt+=v;updateBetUI();SFX.chip(1);const b=document.querySelector(`.tok.d${v}`);if(b&&b.animate)b.animate([{transform:'scale(1)'},{transform:'scale(1.18) translateY(-4px)'},{transform:'scale(1)'}],{duration:350})},700+k*800)))}
-  if(st.demo==='clear'){betAmt=75;updateBetUI();tut.timers.push(setTimeout(()=>{betAmt=0;const i=$('betInput');if(i)i.value='';updateBetUI()},1600))}
+  if(st.demo==='chips'){betAmt=0;betChips=[];updateBetUI();[25,50].forEach((v,k)=>tut.timers.push(setTimeout(()=>{betAmt+=v;betChips=betChips.concat(v);justDropped=true;updateBetUI();SFX.chip(1);const b=document.querySelector(`.tok.d${v}`);if(b&&b.animate)b.animate([{transform:'scale(1)'},{transform:'scale(1.18) translateY(-4px)'},{transform:'scale(1)'}],{duration:350})},700+k*800)))}
+  if(st.demo==='clear'){betAmt=75;betChips=[25,50];updateBetUI();tut.timers.push(setTimeout(()=>{betAmt=0;betChips=[];const i=$('betInput');if(i)i.value='';updateBetUI()},1600))}
   placeStep();
   const f=tip.querySelector('[data-tut="next"],[data-tut="end"]'); if(f) f.focus({preventScroll:true});
 }

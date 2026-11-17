@@ -22,10 +22,15 @@ async function run(width,height,label){
   // my turn at flop in demo
   ok(pre+'mój ruch po starcie podglądu',await ev('viewState().hand.toAct===me'));
   ok(pre+'zegar przy graczu z ruchem',await ev(`!!document.querySelector('.seat.turn #seatClock')`));
-  ok(pre+'stosy żetonów przy każdym graczu z żetonami',await ev(`viewState().players.filter(p=>p.chips>0).every(p=>!!document.querySelector('#seats .pstack[data-for="'+p.id+'"] .d'))`));
+  ok(pre+'stosy żetonów przy każdym graczu z żetonami',await ev(`viewState().players.filter(p=>p.chips>0).every(p=>!!document.querySelector('#seats .pstack[data-for="'+p.id+'"] .pc'))`));
+  ok(pre+'mój stos żetonów nie chowa się pod zegarem ani zdjęciem',await ev(`(()=>{const st=document.querySelector('#seats .pstack[data-for="'+me+'"]');if(!st)return true;const a=st.getBoundingClientRect(),hit=el=>{if(!el)return false;const c=el.getBoundingClientRect();return !(a.right<=c.left||a.left>=c.right||a.bottom<=c.top||a.top>=c.bottom)};return !hit(document.querySelector('.seat.me .av'))&&!hit(document.querySelector('.seat.me .seat-clock'))})()`));
+  ok(pre+'żetony zawsze sumują się do kwoty, większa kwota = wyższa kupka',await ev(`(()=>{for(let a=5;a<=6000;a+=5){if(chipList(a).reduce((x,y)=>x+y,0)!==a)return false}return chipList(20).length<chipList(100).length&&chipList(100).length<chipList(500).length&&chipList(500).length<chipList(2000).length})()`));
   ok(pre+'dziennik: czyja kolej i ostatni ruch',await ev(`$('feed').textContent.includes('Twoja kolej')&&$('feed').textContent.includes((viewState().log||[]).slice(-1)[0].slice(0,12))`));
   ok(pre+'stosy bez śmieciowych znaków',await ev(`!$('seats').textContent.includes('">')`));
-  await p.click('.tok.d25');await p.click('.tok.d25');
+  await p.click('.tok.d25');
+  ok(pre+'kliknięty żeton ląduje na kupce na stole i przy kwocie',await ev(`$('pending').querySelectorAll('.pc').length===1&&$('stakePile').querySelectorAll('.pc').length===1`));
+  await p.click('.tok.d25');
+  ok(pre+'kupka rośnie z każdym żetonem',await ev(`$('pending').querySelectorAll('.pc.pc25').length===2&&$('stakePile').querySelectorAll('.pc.pc25').length===2`));
   ok(pre+'stawiane żetony widać na stole z przyciskiem Postaw',await ev(`!$('pending').hidden&&$('pending').textContent.includes('+50')&&!!$('pending').querySelector('[data-a="bet"]')`));
   if(width>=600) await ev(`$('demoBar').hidden=true;renderTable(viewState())`);
   if(width>=600)   ok(pre+'okienko stawiania nie zasłania puli',await ev(`(()=>{const a=$('pending').getBoundingClientRect(),b=document.querySelector('#center .pot');if(!b)return true;const c=b.getBoundingClientRect();return a.right<=c.left||a.left>=c.right||a.bottom<=c.top||a.top>=c.bottom})()`));
@@ -36,6 +41,7 @@ async function run(width,height,label){
   await p.click('#pending .pend-x');ok(pre+'✕ na stole czyści stawkę',await ev(`$('pending').hidden&&betAmt===0`));
   await p.click('.tok.d50');await p.click('.tok.d10');await p.click('#pending .pend-go');await p.waitForTimeout(150);
   ok(pre+'POSTAW 60 = podbicie do 60',await ev(`viewState().hand.currentBet===60&&viewState().hand.st[me].bet===60`),await ev('JSON.stringify(viewState().hand.st[me])'));
+  ok(pre+'na stole leżą dokładnie moje żetony (50 i 10)',await ev(`[...document.querySelectorAll('#seats .bet.mine .pc')].map(e=>e.className.match(/pc(\\d+)/)[1]).join()==='50,10'`),await ev(`document.querySelector('#seats .bet.mine')?.innerHTML`));
   let r=await botsUntilMe();
   if(r==='me'){await p.click('[data-a="call"],[data-a="check"]');await p.waitForTimeout(100)}
   for(let i=0;i<6&&(r=await botsUntilMe())==='me';i++){await p.click('[data-a="call"],[data-a="check"]');await p.waitForTimeout(100)}
