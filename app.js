@@ -187,7 +187,7 @@ function renderRanking(s){
       <span class="nm2">${esc(r.name||'Gracz')}${r.seated?'':'<small>(nie gra)</small>'}</span>
       <span class="zl2 ${cls}">${sign}${zl(Math.abs(r.net))}<small>${r.net>0?'+':''}${r.net} żet.</small></span>
       <span><span class="wl"><span class="w">zarobione +${zl(r.won)}</span><span class="l">stracone −${zl(r.lost)}</span></span>
-      <span class="rb ${r.rebuys?'on':''}">${r.rebuys?`🔄 Dokupki: ${r.rebuys}× · ${zl(r.rebuys*START)}`:'Bez dokupek'}</span>
+      <span class="rb ${r.rebuys?'on':''}">${r.rebuys?`🔄 Dokupienia: ${r.rebuys}× = ${Math.round(r.rebuys*START*ZL_PER_CHIP)} zł`:'Bez dokupień'}</span>
       <span class="st2">rozdań ${r.hands} · wygranych ${r.wins}${r.best?` · największa pula ${r.best}`:''}</span></span></div>`;
   }).join('')+'</div>';
 }
@@ -249,7 +249,7 @@ function moneyInner(id,chips,buyins){
 }
 function moneyHtml(p){
   const b=p.buyins||1;
-  return `<div class="money" data-money="${esc(p.id)}" data-chips="${p.chips}" data-buyins="${b}" title="Wartość żetonów i bilans (dokupki: ${b})">${moneyInner(p.id,p.chips,b)}</div>`;
+  return `<div class="money" data-money="${esc(p.id)}" data-chips="${p.chips}" data-buyins="${b}" title="Wartość żetonów i bilans (dokupienia: ${b-1})">${moneyInner(p.id,p.chips,b)}</div>`;
 }
 let moneyRaf=0;
 function kickMoney(){
@@ -335,7 +335,7 @@ function renderTable(s){
     const sclock=turnNow?`<span class="seat-clock" id="seatClock">${fmtClock(Math.max(0,SKIP_MS-(Date.now()-h.turnAt)))}</span>`:'';
     html+=`<div class="${cls}" data-id="${esc(p.id)}" style="left:${x}%;top:${y}%">${sclock}
       <div class="av ${isMe?'mine':''}" ${isMe?'data-photo="1" title="Zmień zdjęcie"':''}>${ring}${avatarHtml(p,dealer)}</div>
-      <div class="plate"><div class="nm">${esc(p.name)}</div><div class="ch">${p.chips}</div>${moneyHtml(p)}${(p.buyins||1)>1?`<span class="rbs">🔄 dokupki: ${(p.buyins||1)-1}</span>`:''}${tag}</div>
+      <div class="plate"><div class="nm">${esc(p.name)}</div><div class="ch">${p.chips}</div>${moneyHtml(p)}${(p.buyins||1)>1?`<span class="rbs" title="Dokupienia (każde po 100 zł)"><span class="ri">🔄</span> <span class="rl">dokupienia:</span> <b>${(p.buyins||1)-1}</b></span>`:''}${tag}</div>
       ${hole}
     </div>`;
     if(p.chips>0) html+=`<div class="pstack" data-for="${esc(p.id)}" style="left:${x}%;top:${y}%">${playerStackHtml(p.chips)}</div>`;
@@ -633,7 +633,7 @@ function renderBar(s){
       const cols=1+(meP.chips===0?1:0)+(canShow?1:0);
       rest=`<div class="big-acts" style="grid-template-columns:repeat(${cols},1fr)">
         ${canShow?`<button class="btn call" data-a="show" type="button">Pokaż karty</button>`:''}
-        ${meP.chips===0?`<button class="btn fold" data-a="rebuy" type="button">Dokup<small>${START} żet.</small></button>`:''}
+        ${meP.chips===0?`<button class="btn fold" data-a="rebuy" type="button">Dokup się<small>${START} żet. = ${Math.round(START*ZL_PER_CHIP)} zł</small></button>`:''}
         <button class="btn allin" data-a="deal" type="button" ${elig<2||lockLeft>0?'disabled':''}>${h?'Następne rozdanie':'Rozdaj karty'}${lockLeft>0?`<small>za ${lockLeft} s</small>`:''}</button></div>`;
     } else if(late){
       rest=`<div class="acts" style="grid-template-columns:1fr"><button class="btn" data-a="skip">${who} nie odpowiada: spasuj za niego</button></div>`;
@@ -808,7 +808,7 @@ function renderGames(list){
   const tm=ts=>new Date(ts).toLocaleTimeString('pl-PL',{hour:'2-digit',minute:'2-digit'});
   const day=ts=>new Date(ts).toLocaleDateString('pl-PL',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const rows=ps=>ps.map(p=>`<div class="grow"><span class="gn">${esc(p.name)}</span><span class="gz ${cls(p.net)}">${zl(p.net)}</span>
-    <small>wygrane ${zlFmt(p.won*ZL_PER_CHIP)} zł · przegrane ${zlFmt(p.lost*ZL_PER_CHIP)} zł · rozdań ${p.hands}${p.rebuys?` · dokupki: ${p.rebuys}`:''}${p.leftAt?` · <span class="left">wyjście przed końcem gry: ${tm(p.leftAt)}</span>`:''}</small></div>`).join('');
+    <small>wygrane ${zlFmt(p.won*ZL_PER_CHIP)} zł · przegrane ${zlFmt(p.lost*ZL_PER_CHIP)} zł · rozdań ${p.hands}${p.rebuys?` · dokupienia: ${p.rebuys}`:''}${p.leftAt?` · <span class="left">wyjście przed końcem gry: ${tm(p.leftAt)}</span>`:''}</small></div>`).join('');
   let html='';
   const live=Object.entries(s.game||{}).filter(([,r])=>r.hands>0||r.rebuys>0);
   if(live.length){

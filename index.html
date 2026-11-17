@@ -102,7 +102,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .rtabs button{border:none;background:none;color:var(--muted);font-weight:700;font-size:14px;padding:10px;border-radius:9px}
 .rtabs button.on{background:var(--brass);color:var(--brass-ink)}
 .rk .wl{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
-.rk .rb{display:block;width:max-content;max-width:100%;margin:4px 0 3px;font-size:12.5px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--muted)}
+.rk .rb{display:block;width:max-content;max-width:100%;margin:4px 0 3px;font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--bg);color:var(--muted)}
 .rk .rb.on{background:#5a3a08;color:#ffd27a;box-shadow:inset 0 0 0 1px #c98a1e}
 .rbs{display:inline-block;margin-top:2px;font-size:10px;font-weight:800;letter-spacing:.04em;padding:1px 6px;border-radius:999px;background:#5a3a08;color:#ffd27a;box-shadow:inset 0 0 0 1px #c98a1e}
 .rk .wl .w{color:var(--win)}.rk .wl .l{color:#ff8a80}
@@ -221,7 +221,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
   .ch{font-size:12.5px}
   .money{font-size:9.5px;gap:3px}
   .money .dl{font-size:9px;padding:0 3px}
-  .rbs{font-size:8.5px!important;padding:0 4px!important}
+  .rbs{font-size:8.5px!important;padding:1px 6px!important;display:inline-flex!important;flex-wrap:wrap;justify-content:center;column-gap:3px;line-height:1.25;border-radius:7px!important}
+  .rbs .rl{order:-1;flex-basis:100%;text-align:center}
   .tag{font-size:8.5px}
   .dealer{width:16px;height:16px;font-size:9px;line-height:16px;right:-5px;bottom:-3px}
   .hole{left:calc(50% + 12px);top:-4px}
@@ -729,7 +730,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
         <div><b id="ownerCode">—</b><button class="btn" type="button" id="copyCode">Kopiuj</button></div>
       </div>
       <button class="btn" type="button" id="blindsMenuBtn">Zmień ciemne</button>
-      <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupki). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
+      <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupienia). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
       <button class="btn danger" type="button" id="resetBtn">Zakończ grę i zapisz w historii</button>
       <button class="btn danger" type="button" id="resetConfirm" hidden>Na pewno? Kliknij, aby zakończyć grę</button>
     </div>

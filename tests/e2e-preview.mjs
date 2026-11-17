@@ -77,7 +77,7 @@ async function run(width,height,label){
   await ev(`mutate(s=>{P(s,me).chips=0;s.hand.result.at=0;return true})`);await p.waitForTimeout(150);
   const rb0=await ev('(viewState().game[me]||{}).rebuys||0');
   await p.click('[data-a="rebuy"]');await p.waitForTimeout(150);
-  ok(pre+'Dokup daje 1000 i liczy dokupkę',await ev(`P(viewState(),me).chips===1000&&viewState().game[me].rebuys===${rb0}+1&&!!document.querySelector('.seat.me .rbs')`));
+  ok(pre+'Dokup się daje 1000 i liczy dokupienie',await ev(`P(viewState(),me).chips===1000&&viewState().game[me].rebuys===${rb0}+1&&!!document.querySelector('.seat.me .rbs')`));
   // show cards after everyone folds to me
   await ev(`mutate((s,now)=>{startHand(s,now);let g=0;while(handActive(s)&&g++<20){const id=s.hand.toAct;act(s,id,id===me?(s.hand.currentBet-s.hand.st[id].bet>0?'call':'check'):'fold',0,now)}s.hand.result.at=0;return true})`);await p.waitForTimeout(200);
   const canShow=await ev(`!!document.querySelector('[data-a="show"]')`);
