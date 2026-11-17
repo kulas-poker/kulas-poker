@@ -17,13 +17,14 @@ function api(route, body, q) {
     const isAdmin = String(pin || '') === ADMIN_PIN;
     if (action === 'adminCheck') return { ok: isAdmin };
     if (action === 'enter' || action === 'join') {
-      if (String(args.code || '').trim().toUpperCase() !== TABLE_CODE) return { ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' };
+      const typed = String(args.code || '').trim(); var viaPin = typed === ADMIN_PIN;
+      if (!viaPin && typed.toUpperCase() !== TABLE_CODE) return { ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' };
       db.members.add(uid);
-      if (action === 'enter') return { ok: true };
+      if (action === 'enter') return { ok: true, admin: viaPin || undefined };
     } else if (!db.members.has(uid)) return { ok: false, error: 'Najpierw wpisz kod stołu.' };
     const r = handleAction({ publicState: db.pub, secret: db.secret, uid, action, args, isAdmin, now: Date.now() });
     if (r.ok && !r.unchanged) { db.pub = r.state; db.secret = r.secret; if (r.holes) db.holes = r.holes; push('state'); }
-    return { ok: r.ok, error: r.error };
+    return { ok: r.ok, error: r.error, admin: (r.ok && typeof viaPin !== 'undefined' && viaPin) || undefined };
   }
   const uid = q.get('uid');
   if (!db.members.has(uid)) return { error: 'not member' };

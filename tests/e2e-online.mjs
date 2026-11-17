@@ -27,6 +27,7 @@ const ev = (p, s) => p.evaluate(s);
 
 const A = await player('Ala'), B = await player('Bartek', 1280, 800), C = await player('Celina');
 ok('ekran startowy z polem kodu', await ev(A, `!$('join').hidden && !!$('codeInput')`));
+ok('okno logowania bez poziomego paska (telefon i komputer)', (await Promise.all([A, B].map(p => ev(p, `$('joinForm').scrollWidth<=$('joinForm').clientWidth+1`)))).every(Boolean));
 
 // wrong code
 await A.fill('#nameInput', 'Ala Nowak'); await A.fill('#codeInput', 'ZLY');
@@ -126,6 +127,12 @@ await C.click('#btnMenu'); await C.click('#leaveBtn'); await sleep(500);
 ok('wyjście od stołu widać u innych', (await ev(A, 'viewState().players.length')) === 2);
 ok('ranking się bilansuje', await ev(A, `Object.values(viewState().ranking||{}).reduce((a,r)=>a+r.won-r.lost,0)===0`));
 ok('brak poziomego przewijania (telefon i komputer)', (await Promise.all([A, B].map(p => ev(p, 'document.documentElement.scrollWidth<=innerWidth+1')))).every(Boolean));
+// the owner can type their PIN instead of the table code
+const D = await player('Właściciel');
+await D.fill('#nameInput', 'Paweł Właściciel'); await D.fill('#codeInput', '1234'); await D.click('#joinBtn'); await sleep(500);
+if (await D.isVisible('#tutNo')) await D.click('#tutNo');
+ok('PIN właściciela działa jako kod stołu i włącza tryb właściciela', await ev(D, `isMember && !!mySeat() && isOwner && !$('ownerTools').hidden`));
+ok('zwykły kod stołu nie daje trybu właściciela', (await ev(B, 'isOwner')) === false);
 ok('brak błędów JavaScript', errs.length === 0, errs.slice(0, 3).join(' | '));
 
 await browser.close(); server.close();

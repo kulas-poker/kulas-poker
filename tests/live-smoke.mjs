@@ -34,6 +34,8 @@ if (!authErr) {
   ok('zły PIN właściciela odrzucony', badPin && badPin.ok === false);
   const goodPin = await call('adminCheck', {}, process.env.ADMIN_PIN);
   ok('PIN właściciela działa', goodPin && goodPin.ok === true);
+  const pinAsCode = await call('enter', { code: process.env.ADMIN_PIN });
+  ok('PIN właściciela działa też jako kod stołu', pinAsCode && pinAsCode.ok === true && pinAsCode.admin === true, JSON.stringify(pinAsCode));
 }
 const page = await fetch(process.env.PAGE_URL).then(r => r.text()).catch(e => String(e));
 ok('strona aplikacji się otwiera', page.includes('Kulas Poker'), process.env.PAGE_URL);

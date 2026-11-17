@@ -364,7 +364,9 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .field{display:flex;flex-direction:column;gap:6px}
 .field label{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
 .field input[type=text]{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;color:var(--fg);font-size:16px}
-.photo-row{display:flex;align-items:center;gap:12px}
+.photo-row{display:flex;align-items:center;gap:12px;min-width:0}
+.photo-row input[type=file]{min-width:0;max-width:100%;flex:1;font-size:13px;color:var(--muted)}
+.field .hint{font-size:12px;color:var(--muted);margin:0}
 .photo-row .av{width:64px;height:64px;flex:none}
 .rules{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
 .rules b{color:var(--fg);font-family:var(--f-display);font-size:18px;display:block}
@@ -505,6 +507,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <div class="field">
       <label for="codeInput">Kod stołu</label>
       <input type="text" id="codeInput" maxlength="40" autocapitalize="characters" placeholder="Dostaniesz go od właściciela">
+      <p class="hint">Właściciel stołu może wpisać tu swój PIN.</p>
     </div>
     <div class="field">
       <label for="photoInput">Zdjęcie (opcjonalnie)</label>

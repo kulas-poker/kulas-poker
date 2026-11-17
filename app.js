@@ -601,10 +601,15 @@ $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code)
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};
 $('nameInput').oninput=e=>{if(!pendingPhoto)$('photoPreview').textContent=initials(e.target.value)};
+// the owner typed their PIN as the table code: switch on owner mode right away
+async function becomeOwner(pin){
+  try{ if(await KP.adminLogin(pin)){ isOwner=true; setOwnerUI(); toast('Witaj, właścicielu stołu! Tryb właściciela jest włączony.'); } }catch(_){}
+}
 async function enterTable(code){
   const r=await KP.send('enter',{code});
   if(!r.ok){toast(r.error||'Zły kod stołu.');return false}
   try{localStorage.setItem('ns-code',code)}catch(_){}
+  if(r.admin) await becomeOwner(code);
   isMember=true; startLive(); return true;
 }
 $('joinForm').onsubmit=async e=>{
@@ -619,7 +624,7 @@ $('joinForm').onsubmit=async e=>{
   try{
     const r=await KP.send('join',{name,code});
     if(!r.ok) toast(r.error||'Nie udało się usiąść.');
-    else{ok=true;try{localStorage.setItem('ns-code',code)}catch(_){} isMember=true; startLive();}
+    else{ok=true;try{localStorage.setItem('ns-code',code)}catch(_){} if(r.admin) await becomeOwner(code); isMember=true; startLive();}
   }catch(_){toast('Brak połączenia z serwerem.')}
   if(ok&&pendingPhoto) await savePhoto(pendingPhoto);
   $('joinBtn').disabled=false;

@@ -36,15 +36,19 @@ Deno.serve(async (req) => {
 
     if (action === 'adminCheck') return json({ ok: isAdmin, error: isAdmin ? undefined : 'Zły PIN.' });
 
+    let viaPin = false;
     if (action === 'join' || action === 'enter') {
-      // the table code lets someone in (to watch); 'join' also gives them a seat
-      if (!TABLE_CODE || String(args.code || '').trim().toUpperCase() !== TABLE_CODE)
+      // the table code lets someone in (to watch); 'join' also gives them a seat.
+      // The owner may type their PIN instead of the code: that also switches on owner mode.
+      const typed = String(args.code || '').trim();
+      viaPin = !!ADMIN_PIN && typed === ADMIN_PIN;
+      if (!viaPin && (!TABLE_CODE || typed.toUpperCase() !== TABLE_CODE))
         return json({ ok: false, error: 'Zły kod stołu. Zapytaj właściciela o kod.' });
       const name = String(args.name || '').trim().replace(/\s+/g, ' ').slice(0, 40);
       if (action === 'join' && !name) return json({ ok: false, error: 'Wpisz imię i nazwisko.' });
       const { error: mErr } = await db.from('members').upsert({ uid, name: name || 'Gość' });
       if (mErr) return json({ ok: false, error: 'Błąd serwera: ' + mErr.message }, 500);
-      if (action === 'enter') return json({ ok: true });
+      if (action === 'enter') return json({ ok: true, admin: viaPin || undefined });
     } else {
       const { data: m } = await db.from('members').select('uid').eq('uid', uid).maybeSingle();
       if (!m) return json({ ok: false, error: 'Najpierw wpisz kod stołu.' });
@@ -59,13 +63,13 @@ Deno.serve(async (req) => {
         uid, action, args, isAdmin, now: Date.now(),
       });
       if (!res.ok) return json(res);
-      if (res.unchanged) return json({ ok: true });
+      if (res.unchanged) return json({ ok: true, admin: viaPin || undefined });
       const { data: v, error } = await db.rpc('save_game', {
         p_id: TABLE, p_expected: g ? g.version : -1, p_state: res.state,
         p_secret: res.secret, p_holes: res.holes ?? null,
       });
       if (error) return json({ ok: false, error: 'Błąd serwera: ' + error.message }, 500);
-      if (v !== null) return json({ ok: true });
+      if (v !== null) return json({ ok: true, admin: viaPin || undefined });
       await new Promise((r) => setTimeout(r, 40 + Math.random() * 120));
     }
     return json({ ok: false, error: 'Stół jest zajęty, spróbuj jeszcze raz.' });
