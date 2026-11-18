@@ -24,8 +24,8 @@ img{max-width:100%}
 /* Layout: one-screen card room. Header strip, oval felt with seats on the rail, action bar at the bottom.
    The chat opens as its own column (desktop) or band under the table (phone) so the felt is never covered. Single dark look by choice. */
 :root{
-  --bg:#0d1412; --panel:#16201c; --panel-2:#1e2a25; --line:#2c3a34;
-  --fg:#eef1e8; --muted:#9aa89f;
+  --bg:#2f3a36; --panel:#38453f; --panel-2:#43514a; --line:#56665e;
+  --fg:#f3f5ef; --muted:#b4c0b8;
   --felt:#1d5a43; --felt-deep:#123d2d; --rail:#4a2f1d; --rail-hi:#6e4a2e;
   --brass:#d9b56c; --brass-ink:#2a1f0a;
   --card:#fbfaf5; --card-ink:#1b1b1b; --suit-red:#c8372d;
@@ -71,7 +71,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* table */
 .felt{--rw:clamp(12px,2.8vw,22px);position:absolute;inset:11% 9%;border-radius:50%;border:var(--rw) solid transparent;
   background:
-    radial-gradient(ellipse at 50% 40%,#2f6fc0 0%,#1a4a8c 55%,#0f2f5f 100%) padding-box,
+    radial-gradient(ellipse at 50% 40%,#34a065 0%,#22804d 55%,#155a34 100%) padding-box,
     radial-gradient(ellipse at 50% 8%,#4a4a4f 0%,#1c1c1f 35%,#09090a 70%,#000 100%) border-box;
   box-shadow:0 0 0 1px #000,0 20px 44px rgba(0,0,0,.65),inset 0 0 0 2px rgba(0,0,0,.6),inset 0 0 44px rgba(0,0,0,.5)}
 .felt::before{content:"";position:absolute;inset:calc(var(--rw) / -2);border-radius:50%;border:1.5px dashed rgba(190,190,195,.38);pointer-events:none}
@@ -87,10 +87,21 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 .hint{color:#cfe3d6;font-size:13px;max-width:30ch;line-height:1.45}
 
 /* playing cards */
-.card{--w:38px;width:var(--w);height:calc(var(--w)*1.4);border-radius:5px;background:var(--card);color:var(--card-ink);display:flex;flex-direction:column;align-items:center;justify-content:center;font-weight:700;font-size:calc(var(--w)*.42);line-height:1;box-shadow:0 2px 5px rgba(0,0,0,.45);font-variant-numeric:tabular-nums;flex:none}
-.card .s{font-size:calc(var(--w)*.46);margin-top:1px}
+.card{--w:38px;position:relative;width:var(--w);height:calc(var(--w)*1.4);border-radius:calc(var(--w)*.1);background:var(--card);color:var(--card-ink);border:1px solid #5b5b5b;box-sizing:border-box;font-weight:700;line-height:1;box-shadow:0 2px 5px rgba(0,0,0,.4);font-variant-numeric:tabular-nums;flex:none;overflow:hidden;font-family:Georgia,"Times New Roman",serif}
+/* classic face: rank + small suit in the top-left and (upside down) bottom-right corner, big suit in the middle */
+.card .ci{position:absolute;top:5%;left:7%;display:flex;flex-direction:column;align-items:center;font-size:calc(var(--w)*.34);letter-spacing:-.06em;font-weight:800}
+.card .ci i{font-style:normal;font-size:calc(var(--w)*.26);margin-top:1px;font-family:system-ui,sans-serif}
+.card .ci.b{top:auto;left:auto;bottom:5%;right:7%;transform:rotate(180deg)}
+.card .pip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:calc(var(--w)*.58);font-family:system-ui,sans-serif;line-height:1}
+.card.sm .ci{font-size:calc(var(--w)*.42);left:50%;top:8%;transform:translateX(-50%)}
+.card.sm .ci i{font-size:calc(var(--w)*.4)}
+.card.sm .ci.b,.card.sm .pip{display:none}
 .card.red{color:var(--suit-red)}
-.card.back{background:repeating-linear-gradient(45deg,#7b2f2a 0 4px,#8e3a33 4px 8px);border:2px solid var(--card)}
+.card.back{background:
+  repeating-linear-gradient(45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),
+  repeating-linear-gradient(-45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),
+  radial-gradient(circle at 50% 50%,#e0483c 0,#c3302a 60%,#a82520 100%);
+  border:calc(var(--w)*.08) solid #fff;outline:1px solid #8a8a8a;outline-offset:-1px}
 .card.slot{background:transparent;box-shadow:none;border:1px dashed rgba(207,227,214,.25)}
 .card.sm{--w:22px}
 .card.md{--w:42px}

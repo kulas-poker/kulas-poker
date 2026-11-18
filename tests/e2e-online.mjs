@@ -74,9 +74,9 @@ while (guard++ < 40) {
   const p = [A, B, C][ids.indexOf(st)];
   await sleep(250);
   if (!raised) {
-    await p.click('.tok.d50'); await p.click('.tok.d25'); await p.click('.postaw'); await sleep(300);
+    await p.click('.tok.d50'); await p.click('.tok.d25'); await p.click('#midAct'); await sleep(300);
     raised = await ev(A, `viewState().hand.currentBet>=75`);
-    ok('podbicie żetonami + POSTAW widać u innych', raised);
+    ok('podbicie żetonami + BET widać u innych', raised);
   } else {
     await p.click('[data-a="call"],[data-a="check"]'); await sleep(300);
   }

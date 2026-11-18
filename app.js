@@ -39,7 +39,8 @@ function cardHtml(c,cls=''){
   if(!c) return `<div class="card slot ${cls}"></div>`;
   if(c==='back'||c==='XX') return `<div class="card back ${cls}"></div>`;
   const r=c[0]==='T'?'10':c[0], s={s:'♠',h:'♥',d:'♦',c:'♣'}[c[1]], red=c[1]==='h'||c[1]==='d';
-  return `<div class="card ${red?'red':''} ${cls}" aria-label="${r}${s}">${r}<span class="s">${s}</span></div>`;
+  const r2=r==='10'?'10':r;
+  return `<div class="card ${red?'red':''} ${cls}" aria-label="${r}${s}"><span class="ci">${r2}<i>${s}</i></span><span class="pip">${s}</span><span class="ci b" aria-hidden="true">${r2}<i>${s}</i></span></div>`;
 }
 function chipFace(d){return `<span class="holo"></span><i class="st s1">♠</i><i class="st s2">♥</i><i class="st s3">♣</i><i class="st s4">♦</i><span class="core"><b>${d}</b></span>`}
 // chips drawn as real piles: each chip is a disc with a striped edge, stacked on top of each other
@@ -466,7 +467,6 @@ function updatePending(){
   const st=h.st[me];
   el.innerHTML=`<div class="pend-chips">${betPileHtml('pend')}</div>
     <div class="pend-amt">+${betAmt}${st.bet?`<small>razem ${st.bet+betAmt}</small>`:''}</div>
-    <button class="btn primary pend-go" data-a="bet" type="button">Postaw</button>
     <button class="pend-x" data-clear="1" type="button" aria-label="Wyczyść stawkę">✕</button>`;
   el.hidden=false; $('room').classList.add('pending-on');
   // next to my seat (left of my picture) so the pot stays visible; above it when there is no room
@@ -635,6 +635,11 @@ function updateBetUI(){
   const mx=i?+i.dataset.max:0;
   document.querySelectorAll('.tok[data-add]').forEach(t=>t.disabled=betAmt+ +t.dataset.add>mx);
   const sp=$('stakePile'); if(sp) sp.innerHTML=betPileHtml('panel');
+  // middle button: Check / Call with nothing staked; Bet as soon as chips are added
+  const m=$('midAct');
+  if(m){const tc=+m.dataset.tocall||0;
+    if(betAmt>0){m.dataset.a='bet';m.classList.add('betgo');m.innerHTML=`Bet<small>${betAmt}</small>`}
+    else{m.classList.remove('betgo');if(tc>0){m.dataset.a='call';m.innerHTML=`Call<small>${tc}</small>`}else{m.dataset.a='check';m.innerHTML='Check'}}}
   updatePending();
   justDropped=false;
 }
@@ -665,7 +670,6 @@ function renderBar(s){
         <div class="av mine" data-photo="1" title="Zmień zdjęcie">${avatarHtml(meP)}</div>
         <div class="who"><b>${esc(meP.name)}</b>${moneyHtml(meP)}</div>
         ${!meP.away&&h&&h.st&&h.st[me]&&h.hole[me]?`<div class="mycol"><div class="mycards">${h.hole[me].map((c,ci)=>{const dd=dealDelay(me,ci),w=dd===null?-999:dd+480;return cardHtml(c,'md'+(h.st[me].folded?' dim':'')+hlCls(hlCards(h),c)+(w>-300?` late" style="animation-delay:${Math.max(0,w)}ms`:''))}).join('')}</div>${myHandHtml(h)}</div>`:''}
-        ${myTurn?`<button class="btn primary postaw" data-a="bet" type="button">Postaw</button>`:''}
         <div class="stackv">${meP.chips}<small>żetonów</small></div>
       </div>`;
     const rack=`<div class="rack">${DENOMS.slice().reverse().map(d=>`<button class="tok d${d}" data-add="${d}" type="button" aria-label="Postaw ${d}" ${myTurn?'':'disabled'}>${chipFace(d)}</button>`).join('')}</div>`;
@@ -676,7 +680,7 @@ function renderBar(s){
       <div class="stake"><div class="stake-pile" id="stakePile"></div><input type="number" id="betInput" inputmode="numeric" min="0" step="${UNIT}" data-max="${cap}" placeholder="0" aria-label="Kwota do postawienia"><button class="btn" data-clear="1" type="button">Wyczyść</button></div>
       <div class="big-acts">
         <button class="btn fold" data-a="fold" type="button">Fold</button>
-        ${toCall>0?`<button class="btn call" data-a="call" type="button">Call<small>${toCall}</small></button>`:`<button class="btn call" data-a="check" type="button">Check</button>`}
+        <button class="btn call" id="midAct" type="button" data-tocall="${toCall}"></button>
         <button class="btn allin" data-a="allin" type="button" ${raiseOk||meP.chips<=toCall?'':'disabled'}>All-in<small>${raiseOk||meP.chips<=toCall?meP.chips:'niedostępny'}</small></button>
       </div>`;
     } else if(!live){
@@ -1035,8 +1039,7 @@ const TUT=[
  {s:'#seatClock',pad:10,t:'Zegar ruchu',p:'Gracz, który ma ruch, ma na decyzję <b>2 minuty</b>. Zegar widać przy jego zdjęciu. W ostatnich 15 sekundach robi się czerwony, a po upływie czasu gra sama robi <b>fold</b>.'},
  {s:'.rack',t:'Żetony',p:'Gdy masz ruch, klikaj żetony, żeby <b>dodawać je do stawki</b>. Każde kliknięcie dokłada nominał. Patrz, dokładam teraz 25 i 50.',demo:'chips'},
  {s:'.stake',t:'Kwota i Wyczyść',p:'Tu widzisz, ile chcesz postawić. Kwotę możesz też <b>wpisać ręcznie</b>. Jeśli zmienisz zdanie, <b>Wyczyść</b> zeruje stawkę.',demo:'clear'},
- {s:'.postaw',t:'Postaw',p:'Dopiero <b>POSTAW</b> zatwierdza ruch. Kwota równa sprawdzeniu to call, większa to podbicie, a cały stos to all-in. Jeśli kwota jest za mała, gra podpowie, ile trzeba.'},
- {s:'.big-acts',t:'Szybkie ruchy',p:'<b>FOLD</b> to pas i wypadasz z rozdania. <b>CHECK</b> to czekanie, gdy nikt nie postawił. <b>CALL</b> wyrównuje stawkę. <b>ALL-IN</b> stawia wszystkie Twoje żetony.'},
+ {s:'.big-acts',t:'Ruchy',p:'<b>FOLD</b> to pas i wypadasz z rozdania. <b>CHECK</b> to czekanie, gdy nikt nie postawił. <b>CALL</b> wyrównuje stawkę. Gdy dołożysz żetony, środkowy przycisk zmienia się na <b>BET</b> i zatwierdza Twoją kwotę (większa niż sprawdzenie to podbicie). <b>ALL-IN</b> stawia wszystkie Twoje żetony.'},
  {s:'.me-strip .money',pad:6,t:'Złotówki',p:'Twoje żetony przeliczone na złote (1000 żetonów = 100 zł) i bilans: <b style="color:var(--win)">zielony</b> na plusie, <b style="color:#ff8a80">czerwony</b> na minusie. To samo widać przy każdym graczu.'},
  {s:'#fab',pad:6,t:'Czat',p:'Zielony dymek otwiera czat jak w WhatsAppie, z emotkami, naklejkami i GIF-ami. Czat otwiera się obok stołu i nic nie zasłania.'},
  {s:'#btnLog',pad:6,t:'Historia',p:'Wszystkie ruchy, a po każdym rozdaniu <b>karty wszystkich graczy</b>. Każdy może sprawdzić, że karty były losowe.'},

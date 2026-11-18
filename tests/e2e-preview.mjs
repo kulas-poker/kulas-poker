@@ -35,15 +35,18 @@ async function run(width,height,label){
   ok(pre+'kliknięty żeton ląduje na kupce na stole i przy kwocie',await ev(`$('pending').querySelectorAll('.pc').length===1&&$('stakePile').querySelectorAll('.pc').length===1`));
   await p.click('.tok.d25');
   ok(pre+'kupka rośnie z każdym żetonem',await ev(`$('pending').querySelectorAll('.pc.pc25').length===2&&$('stakePile').querySelectorAll('.pc.pc25').length===2`));
-  ok(pre+'stawiane żetony widać na stole z przyciskiem Postaw',await ev(`!$('pending').hidden&&$('pending').textContent.includes('+50')&&!!$('pending').querySelector('[data-a="bet"]')`));
+  ok(pre+'stawiane żetony widać na stole',await ev(`!$('pending').hidden&&$('pending').textContent.includes('+50')`));
+  ok(pre+'po dołożeniu żetonów Check zmienia się na Bet',await ev(`(()=>{const m=$('midAct');return m.dataset.a==='bet'&&/^bet/i.test(m.textContent.trim())&&m.textContent.includes('50')})()`),await ev(`$('midAct').textContent`));
+  ok(pre+'nie ma innych przycisków Postaw',await ev(`document.querySelectorAll('[data-a="bet"]').length===1&&!document.querySelector('.postaw,.pend-go')`));
   if(width>=600) await ev(`$('demoBar').hidden=true;renderTable(viewState())`);
   if(width>=600)   ok(pre+'okienko stawiania nie zasłania puli',await ev(`(()=>{const a=$('pending').getBoundingClientRect(),b=document.querySelector('#center .pot');if(!b)return true;const c=b.getBoundingClientRect();return a.right<=c.left||a.left>=c.right||a.bottom<=c.top||a.top>=c.bottom})()`));
   ok(pre+'żetony dodają się do kwoty',await ev(`$('betInput').value==='50'`),await ev(`$('betInput').value`));
   await p.click('[data-clear]');ok(pre+'Wyczyść zeruje kwotę',await ev(`$('betInput').value===''&&betAmt===0`));
-  await p.fill('#betInput','7');await p.click('.postaw');await p.waitForTimeout(100);
+  await p.fill('#betInput','7');await p.click('#midAct');await p.waitForTimeout(100);
   ok(pre+'zła kwota nie przechodzi',await ev('viewState().hand.toAct===me'));
   await p.click('#pending .pend-x');ok(pre+'✕ na stole czyści stawkę',await ev(`$('pending').hidden&&betAmt===0`));
-  await p.click('.tok.d50');await p.click('.tok.d10');await p.click('#pending .pend-go');await p.waitForTimeout(150);
+  ok(pre+'bez żetonów środkowy przycisk wraca na Check/Call',await ev(`['check','call'].includes($('midAct').dataset.a)`));
+  await p.click('.tok.d50');await p.click('.tok.d10');await p.click('#midAct');await p.waitForTimeout(150);
   ok(pre+'POSTAW 60 = podbicie do 60',await ev(`viewState().hand.currentBet===60&&viewState().hand.st[me].bet===60`),await ev('JSON.stringify(viewState().hand.st[me])'));
   ok(pre+'na stole leżą dokładnie moje żetony (50 i 10)',await ev(`[...document.querySelectorAll('#seats .bet.mine .pc')].map(e=>e.className.match(/pc(\\d+)/)[1]).join()==='50,10'`),await ev(`document.querySelector('#seats .bet.mine')?.innerHTML`));
   let r=await botsUntilMe();
@@ -150,7 +153,7 @@ async function run(width,height,label){
   await p.click('#btnMenu');await p.click('#tutMenu');await p.waitForTimeout(300);
   let steps=0;for(;steps<20;steps++){const nx=await p.$('[data-tut="next"]');if(!nx)break;await nx.click();await p.waitForTimeout(60)}
   await p.click('[data-tut="end"]');await p.waitForTimeout(200);
-  ok(pre+'samouczek przechodzi wszystkie kroki',steps===15&&await ev('tut===null'),`kroków ${steps+1}`);
+  ok(pre+'samouczek przechodzi wszystkie kroki',steps===14&&await ev('tut===null'),`kroków ${steps+1}`);
   // leave table (start a fresh preview first)
   await ev('startDemo()');await p.waitForTimeout(300);await ev('clearTimeout(demoTimer)');
   await p.click('#btnMenu');await p.click('#leaveBtn');await p.waitForTimeout(150);
