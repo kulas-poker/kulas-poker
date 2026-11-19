@@ -8,6 +8,22 @@ const base = `http://localhost:${server.address().port}/`;
 const mock = fs.readFileSync(new URL('./mock-client.js', import.meta.url), 'utf8');
 const results=[];let failed=0;
 const ok=(name,cond,info='')=>{results.push(`${cond?'✅':'❌'} ${name}${info?' — '+info:''}`);if(!cond)failed++};
+async function introTest(){
+  const b=await chromium.launch();const ctx=await b.newContext({viewport:{width:390,height:844}});await ctx.addInitScript(mock);const p=await ctx.newPage();
+  const errs=[];p.on('pageerror',e=>errs.push(e.message));
+  await p.route('**/fonts.googleapis.com/**',r=>r.abort());
+  await p.goto(base+'?nointro');await p.waitForTimeout(300);
+  ok('intro: ?nointro go wyłącza',await p.evaluate(`!document.getElementById('intro')`));
+  await p.goto(base+'?intro');await p.waitForTimeout(1500);
+  ok('intro gra przy starcie aplikacji',await p.evaluate(`!!document.getElementById('intro')&&KP_INTRO.playing`));
+  ok('intro rysuje obraz (nie jest pusty)',await p.evaluate(`(()=>{const c=document.querySelector('#intro canvas'),g=c.getContext('2d');const d=g.getImageData(0,0,c.width,c.height).data;let lit=0;for(let i=0;i<d.length;i+=4*97)if(d[i]+d[i+1]+d[i+2]>60)lit++;return lit>50})()`));
+  await p.mouse.click(200,400);await p.waitForTimeout(700);
+  ok('dotknięcie pomija intro',await p.evaluate(`!document.getElementById('intro')`));
+  await p.goto(base+'?intro');await p.waitForTimeout(8200);
+  ok('intro samo znika po końcu',await p.evaluate(`!document.getElementById('intro')`));
+  ok('intro bez błędów',errs.length===0,errs.join(' | '));
+  await b.close();
+}
 async function run(width,height,label){
   const b=await chromium.launch();const ctx=await b.newContext({viewport:{width,height}});await ctx.addInitScript(mock);const p=await ctx.newPage();
   const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/fonts|ERR_FAILED|Failed to load resource/.test(m.text()))errs.push(m.text())});
@@ -65,6 +81,7 @@ async function run(width,height,label){
   await p.click('[data-a="deal"]');await p.waitForTimeout(250);
   ok(pre+'nowe rozdanie startuje',await ev(`viewState().hand.no===${no}+1`));
   ok(pre+'animacja tasowania widoczna',await ev(`!!document.querySelector('.shuffler')`));
+  ok(pre+'tasowanie: 18 kart w nowym wzorze, karty animowane',await ev(`(()=>{const c=[...document.querySelectorAll('.shuffler .cb')];return c.length===18&&c.every(x=>x.getAnimations().length===1)&&getComputedStyle(c[0]).backgroundImage.includes('radial-gradient')})()`));
   ok(pre+'rozdawanie od gracza po lewej rozdającego, po 1 karcie w 2 kółkach',await ev(`(()=>{const h=viewState().hand,n=h.order.length,seq=dealPlan.seq;
     if(seq[0]!==h.order[(h.order.indexOf(h.dealer)+1)%n]) return false;
     const t=[];for(let c=0;c<2;c++)seq.forEach(id=>t.push(dealDelay(id,c)));return t.every((v,i)=>i===0||v>t[i-1])})()`));
@@ -166,4 +183,4 @@ async function run(width,height,label){
   ok(pre+'brak błędów JavaScript',errs.length===0,errs.slice(0,3).join(' | '));
   await b.close();
 }
-(async()=>{await run(390,844,'telefon');await run(1280,800,'komputer');console.log(results.join('\n'));console.log(`\nWYNIK: ${results.length-failed}/${results.length} OK`);server.close();process.exit(failed?1:0)})();
+(async()=>{await introTest();await run(390,844,'telefon');await run(1280,800,'komputer');console.log(results.join('\n'));console.log(`\nWYNIK: ${results.length-failed}/${results.length} OK`);server.close();process.exit(failed?1:0)})();

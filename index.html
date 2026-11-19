@@ -602,19 +602,18 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* dealer shuffle in the middle of the table */
 .center{transition:opacity .3s}
 .room.shuffling .center{opacity:0}
-.shuffler{position:absolute;left:50%;top:47%;width:0;height:0;z-index:5;pointer-events:none}
-.shuffler .half{position:absolute;left:0;top:0}
-.shuffler .cb{position:absolute;width:44px;height:62px;margin:-31px 0 0 -22px;border-radius:5px;border:2px solid var(--card);
-  background:repeating-linear-gradient(45deg,#7b2f2a 0 4px,#8e3a33 4px 8px);box-shadow:0 1px 2px rgba(0,0,0,.5)}
-@media (min-width:700px){.shuffler .cb{width:54px;height:76px;margin:-38px 0 0 -27px}}
-.shuffler .half.l{animation:riffL .8s ease-in-out 2}
-.shuffler .half.r{animation:riffR .8s ease-in-out 2}
-.shuffler .deck{animation:squareup 1.9s ease-in-out both}
+.shuffler{position:absolute;left:50%;top:47%;width:0;height:0;z-index:5;pointer-events:none;--cw:46px;--ch:64px}
+@media (min-width:700px){.shuffler{--cw:56px;--ch:78px}}
+.shuffler .cb{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);margin:calc(var(--ch)/-2) 0 0 calc(var(--cw)/-2);box-sizing:border-box;border-radius:5px;
+  border:3px solid #fff;outline:1px solid rgba(0,0,0,.35);outline-offset:-1px;will-change:transform;
+  background:repeating-linear-gradient(45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),repeating-linear-gradient(-45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),radial-gradient(circle at 50% 50%,#e0483c 0,#c3302a 60%,#a82520 100%);
+  box-shadow:0 1px 2px rgba(0,0,0,.45)}
+.shuffler .cb.top::after{content:"";position:absolute;inset:0;border-radius:2px;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.7) 50%,transparent 65%);background-size:300% 100%;background-position:100% 0;animation:shufglint .6s 1.3s ease-out both}
+@keyframes shufglint{to{background-position:-50% 0}}
+.shuffler .shadow{position:absolute;left:0;top:0;width:150px;height:26px;margin:calc(var(--ch)/2 - 10px) 0 0 -75px;border-radius:50%;background:radial-gradient(closest-side,rgba(0,0,0,.45),transparent);animation:shufshadow 1.9s ease-in-out both}
+@keyframes shufshadow{0%{transform:scale(.4);opacity:0}12%{transform:scale(.6);opacity:1}25%,55%{transform:scale(1.25,1)}75%,100%{transform:scale(.7);opacity:1}}
 .shuffler.out{animation:shufout .35s ease-in both}
-@keyframes riffL{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(-46px,6px) rotate(-14deg)}55%{transform:translate(-46px,6px) rotate(-6deg)}80%{transform:translate(-6px,0) rotate(-2deg)}}
-@keyframes riffR{0%,100%{transform:translate(0,0) rotate(0)}30%{transform:translate(46px,6px) rotate(14deg)}55%{transform:translate(46px,6px) rotate(6deg)}80%{transform:translate(6px,0) rotate(2deg)}}
-@keyframes squareup{0%,84%{transform:none}90%{transform:translateY(-6px) scale(1.04)}96%{transform:translateY(1px) scale(.98)}100%{transform:none}}
-@keyframes shufout{to{transform:scale(.6);opacity:0}}
+@keyframes shufout{to{transform:scale(.7) translateY(6px);opacity:0}}
 @keyframes fly{from{transform:translate(var(--fx),var(--fy)) rotate(-25deg) scale(.5);opacity:0}30%{opacity:1}}
 .flychips{position:absolute;transform:translate(-50%,-50%);z-index:4;pointer-events:none;transition:left .55s cubic-bezier(.4,0,.2,1),top .55s cubic-bezier(.4,0,.2,1),opacity .2s .5s}
 @media (prefers-reduced-motion:reduce){.card.deal,.card.fly,.fab.pop,[class*="a-"]{animation:none!important}.flychips{transition:none}}
@@ -824,6 +823,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 <input type="file" id="photoQuick" accept="image/*" hidden>
 
 
+<script src="intro.js"></script>
 <script type="module" src="boot.mjs"></script>
 <script defer src="app.js"></script>
 </body>

@@ -503,7 +503,7 @@ function noise(dur,vol=.15,when=0,freq=2000,q=1){
   src.connect(bp).connect(g).connect(a.destination); src.start(t);
 }
 const SFX={
-  shuffle(){[0.12,0.92].forEach(o=>{for(let i=0;i<14;i++)noise(.04,.2,o+.28+i*.028,1800+Math.random()*1800,.8)});noise(.06,.25,1.72,900,.7)},
+  shuffle(){for(let i=0;i<18;i++)noise(.035,.2,.5+i*.04,1800+Math.random()*1800,.8);noise(.18,.08,1.3,600,.5);noise(.05,.25,1.62,900,.7)},
   flip(){noise(.05,.22,0,2600,1);noise(.05,.16,.06,2200,1)},
   deal(n,base=.55,step=.07){for(let i=0;i<n;i++)noise(.035,.16,base+i*step,3500,1.2)},
   chip(k=1){for(let i=0;i<k;i++){const w=i*.06+Math.random()*.02;tone(2500+Math.random()*700,.07,'triangle',.12,w);tone(3600+Math.random()*500,.05,'sine',.06,w+.01)}},
@@ -521,10 +521,38 @@ function playShuffle(){
   if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   shuffleUntil=Date.now()+SHUF_MS;
   const room=$('room'); const old=room.querySelector('.shuffler'); if(old) old.remove();
-  const half=(cls)=>`<div class="half ${cls}">${[0,1,2,3,4,5,6,7].map(i=>`<i class="cb" style="transform:translate(${(cls==='l'?-1:1)*i*.7}px,${-i*2}px)"></i>`).join('')}</div>`;
   const el=document.createElement('div'); el.className='shuffler';
-  el.innerHTML=`<div class="deck">${half('l')}${half('r')}</div>`;
+  const N=18; el.innerHTML='<i class="shadow"></i>'+Array.from({length:N},()=>'<i class="cb"></i>').join('');
   room.appendChild(el); room.classList.add('shuffling');
+  // a real riffle: split the deck, bend both halves, let the cards fall in turn, bridge, square up
+  const cw=el.querySelector('.cb').offsetWidth||46, sp=cw*1.15, D=SHUF_MS;
+  const cards=[...el.querySelectorAll('.cb')];
+  cards.forEach((c,i)=>{
+    const side=i%2?1:-1, j=i>>1, k=i;   // k = landing order: bottom of each half first, left/right in turn
+    const rnd=((i*37)%7-3)*1.1;
+    const pre=`translate(0px,${-i*0.7}px) rotate(0deg) scale(1)`;
+    const atHalf=`translate(${side*sp}px,${6-j*1.4}px) rotate(${side*8}deg) scale(1)`;
+    const bent=`translate(${side*(sp-6)}px,${-2-j*1.4}px) rotate(${-side*14}deg) scale(1)`;
+    const drop=0.5+k*0.04;
+    const pile=`translate(${side*3}px,${-k*0.9}px) rotate(${rnd}deg) scale(1)`;
+    const arcA=(k-(N-1)/2)/((N-1)/2);
+    const bridge=`translate(${arcA*cw*0.9}px,${-18-Math.cos(arcA*Math.PI/2)*cw*0.55}px) rotate(${arcA*28}deg) scale(1.04)`;
+    const square=`translate(0px,${-k*0.6}px) rotate(0deg) scale(1)`;
+    c.style.zIndex=k+1; if(k===N-1) c.classList.add('top');
+    const o=sec=>Math.min(1,sec/1.9);         // timeline written in seconds of a 1.9 s shuffle
+    c.animate([
+      {offset:0,transform:pre.replace('scale(1)','scale(.7)'),opacity:0},
+      {offset:o(.18),transform:pre,opacity:1,easing:'cubic-bezier(.3,.7,.3,1)'},
+      {offset:o(.42),transform:atHalf},
+      {offset:o(.48),transform:atHalf,easing:'ease-in-out'},
+      {offset:o(drop),transform:bent,easing:'cubic-bezier(.5,0,.9,.6)'},
+      {offset:o(drop+.08),transform:pile},
+      {offset:o(1.28),transform:pile,easing:'cubic-bezier(.3,0,.3,1)'},
+      {offset:o(1.46),transform:bridge,easing:'cubic-bezier(.6,0,.9,.5)'},
+      {offset:o(1.62),transform:square},
+      {offset:1,transform:square}
+    ],{duration:D,fill:'both'});
+  });
   setTimeout(()=>{el.classList.add('out')},SHUF_MS-150);
   setTimeout(()=>{el.remove();room.classList.remove('shuffling')},SHUF_MS+250);
 }
