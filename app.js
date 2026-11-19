@@ -217,7 +217,7 @@ function renderFeed(s){
   const h=s.hand; let head;
   if(!online()) head='Łączenie ze stołem…';
   else if(h&&handActive(s)&&h.toAct){
-    const left=Math.max(0,SKIP_MS-(Date.now()-(h.turnAt||0)));
+    const left=Math.max(0,(isBot(s,h.toAct)?BOT_MS:SKIP_MS)-(Date.now()-(h.turnAt||0)));
     head=(h.toAct===me?'<b class="you">Twoja kolej</b>':`Kolej: <b>${esc(nm(s,h.toAct))}</b>`)+` <span class="fclock" id="feedClock">${fmtClock(left)}</span>`;
   } else if(h&&h.result&&revealing(h)) head='Krupier odkrywa karty…';
   else if(h&&h.result) head='Rozdanie zakończone: '+h.result.winners.map(w=>`<b>${esc(nm(s,w.id))}</b> +${w.amount}`).join(', ');
@@ -342,7 +342,7 @@ function renderTable(s){
     const dealer=h&&h.dealer===p.id?'<span class="dealer" title="Rozdający">D</span>':'';
     const turnNow=h&&!h.result&&h.toAct===p.id;
     const ring=turnNow?'<span class="ring"></span>':'';
-    const sclock=turnNow?`<span class="seat-clock" id="seatClock">${fmtClock(Math.max(0,SKIP_MS-(Date.now()-h.turnAt)))}</span>`:'';
+    const sclock=turnNow?`<span class="seat-clock" id="seatClock">${fmtClock(Math.max(0,(isBot(s,h.toAct)?BOT_MS:SKIP_MS)-(Date.now()-h.turnAt)))}</span>`:'';
     html+=`<div class="${cls}" data-id="${esc(p.id)}" style="left:${x}%;top:${y}%">${sclock}
       <div class="av ${isMe?'mine':''}" ${isMe?'data-photo="1" title="Zmień zdjęcie"':''}>${ring}${avatarHtml(p,dealer)}</div>
       <div class="plate"><div class="nm">${esc(p.name)}</div><div class="ch">${p.chips}</div>${moneyHtml(p)}${(p.buyins||1)>1?`<span class="rbs" title="Dokupienia (każde po 100 zł)"><span class="ri">🔄</span> <span class="rl">dokupienia:</span> <b>${(p.buyins||1)-1}</b></span>`:''}${tag}</div>
