@@ -206,6 +206,23 @@ async function run(width,height,label){
   let steps=0;for(;steps<20;steps++){const nx=await p.$('[data-tut="next"]');if(!nx)break;await nx.click();await p.waitForTimeout(60)}
   await p.click('[data-tut="end"]');await p.waitForTimeout(200);
   ok(pre+'samouczek przechodzi wszystkie kroki',steps===14&&await ev('tut===null'),`kroków ${steps+1}`);
+  // dealer voice: catch what she would say
+  await ev('startDemo()');await p.waitForTimeout(300);
+  await ev(`window.__said=[];VOICE.on=true;muted=false;speechSynthesis.speak=u=>{__said.push(u.text);setTimeout(()=>u.onend&&u.onend(),0)}`);
+  await botsUntilMe();
+  const toCallMe=await ev(`viewState().hand.currentBet-viewState().hand.st[me].bet`);
+  await p.click(toCallMe>0?'[data-a="call"]':'[data-a="check"]');await p.waitForTimeout(250);
+  ok(pre+'krupierka mówi mój ruch bez imienia',await ev(`__said.some(t=>t==='Czek'||/^Sprawdzasz \\d+$/.test(t))`),await ev('__said.join(" | ")'));
+  await ev(`mutate((s,now)=>{const h=s.hand,id=h.toAct;return act(s,id,'raise',h.currentBet+h.minRaise+40,now)})`);await p.waitForTimeout(250);
+  ok(pre+'krupierka mówi imię i kwotę innego gracza',await ev(`__said.some(t=>/^(Kuba|Marta|Tomek|Ania) (stawia|podbija do) \\d+$/.test(t))`),await ev('__said.join(" | ")'));
+  await ev(`mutate((s,now)=>{let g=0;while(handActive(s)&&g++<40){const h=s.hand,id=h.toAct;act(s,id,'fold',0,now)}return true})`);await p.waitForTimeout(1500);
+  ok(pre+'krupierka ogłasza zwycięzcę',await ev(`__said.some(t=>/(wygrywa|zgarnia|Wygrywasz|Zgarniasz)/.test(t))`),await ev('__said.join(" | ")'));
+  ok(pre+'krupierka nie mówi nazwiska ani dziennika technicznego',await ev(`__said.every(t=>!/Rozdanie|Nowak|stół:/.test(t))`),await ev('__said.join(" | ")'));
+  await p.click('#btnMenu');await p.click('#voiceBtn');await p.click('[data-close="menuBox"]');
+  await ev(`__said=[];mutate((s,now)=>{s.hand=null;return startHand(s,now)})`);await p.waitForTimeout(200);
+  await ev(`mutate((s,now)=>{const h=s.hand,id=h.toAct;return act(s,id,'fold',0,now)})`);await p.waitForTimeout(200);
+  ok(pre+'wyłączony głos krupierki milczy',await ev(`__said.length===0&&$('voiceBtn').textContent.includes('wyłączony')`));
+  await p.click('#btnMenu');await p.click('#voiceBtn');await p.click('[data-close="menuBox"]');
   // leave table (start a fresh preview first)
   await ev('startDemo()');await p.waitForTimeout(300);await ev('clearTimeout(demoTimer)');
   await p.click('#btnMenu');await p.click('#leaveBtn');await p.waitForTimeout(150);

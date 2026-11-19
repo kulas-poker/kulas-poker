@@ -584,7 +584,66 @@ function startBoardAnim(h,from,hide){
   boardAnim={no:h.no,cards,end,hide};
   setTimeout(()=>{lastBarKey='';render()},end-now+30);
 }
-function onStateChange(prev,next){
+function onStateChange(prev,next){ onStateChangeFx(prev,next); try{dealerVoice(prev,next)}catch(_){} }
+// ---------- dealer voice ("krupierka"): the phone's own Polish female voice says who does what ----------
+const VOICE={on:true,v:null,q:0};
+try{VOICE.on=localStorage.getItem('kp-voice')!=='0'}catch(_){}
+const HAS_TTS='speechSynthesis' in window&&typeof SpeechSynthesisUtterance!=='undefined';
+function pickVoice(){
+  if(!HAS_TTS) return;
+  const vs=speechSynthesis.getVoices().filter(v=>/^pl/i.test(v.lang));
+  const sc=v=>(/zosia|ewa|paulina|agnieszka|maja|zofia|natalia|alicja|female|kobiet/i.test(v.name)?5:0)-(/krzysztof|jacek|marek|adam|\bjan\b|male|mężczy/i.test(v.name)?8:0)
+    +(/enhanced|premium|natural|neural|online|wavenet|rozszerz|ulepsz/i.test(v.name)?3:0)+(/google/i.test(v.name)?2:0);
+  VOICE.v=vs.sort((a,b)=>sc(b)-sc(a))[0]||null;
+}
+if(HAS_TTS){pickVoice();try{speechSynthesis.addEventListener('voiceschanged',pickVoice)}catch(_){}}
+// iPhone: speech works only after the first touch, so wake it up silently then
+addEventListener('pointerdown',function wake(){removeEventListener('pointerdown',wake,true);if(HAS_TTS){try{const u=new SpeechSynthesisUtterance(' ');u.volume=0;speechSynthesis.speak(u)}catch(_){}}},true);
+function say(text,delay=0){
+  if(!HAS_TTS||!VOICE.on||muted||!text) return;
+  setTimeout(()=>{
+    if(!VOICE.on||muted||document.hidden) return;
+    if(VOICE.q>3){speechSynthesis.cancel();VOICE.q=0}       // never fall far behind the game
+    const u=new SpeechSynthesisUtterance(text); u.lang='pl-PL'; if(VOICE.v) u.voice=VOICE.v; u.rate=1.05; u.pitch=1.08;
+    VOICE.q++; u.onend=u.onerror=()=>{VOICE.q=Math.max(0,VOICE.q-1)};
+    speechSynthesis.speak(u);
+  },Math.max(0,delay));
+}
+// what the dealer says for one line of the table log ("Kuba: stawia 100" → "Kuba stawia 100"); my own moves without my name
+function voiceLine(line){
+  const myFirst=((mySeat()||{}).name||'').split(' ')[0];
+  let m;
+  if((m=line.match(/^(.+?): czeka$/))) return m[1]===myFirst?'Czek':`${m[1]}, czek`;
+  if((m=line.match(/^(.+?): pas/))) return m[1]===myFirst?'Pas':`${m[1]} pasuje`;
+  if((m=line.match(/^(.+?): sprawdza (\d+)$/))) return m[1]===myFirst?`Sprawdzasz ${m[2]}`:`${m[1]} sprawdza ${m[2]}`;
+  if((m=line.match(/^(.+?): stawia (\d+)$/))) return m[1]===myFirst?`Stawiasz ${m[2]}`:`${m[1]} stawia ${m[2]}`;
+  if((m=line.match(/^(.+?): podbija do (\d+)$/))) return m[1]===myFirst?`Podbijasz do ${m[2]}`:`${m[1]} podbija do ${m[2]}`;
+  if((m=line.match(/^(.+?): all-in (\d+)$/))) return m[1]===myFirst?`Ol-in! ${m[2]}`:`${m[1]}, ol-in! ${m[2]}`;
+  if((m=line.match(/^(.+?): czas minął/))) return m[1]===myFirst?'Twój czas minął':`${m[1]}, czas minął`;
+  if((m=line.match(/^(.+?) zgarnia (\d+)/))) return m[1]===myFirst?`Zgarniasz pulę, ${m[2]}`:`${m[1]} zgarnia pulę, ${m[2]}`;
+  if((m=line.match(/^(.+?) wygrywa (\d+) · (.+)$/))) return (m[1]===myFirst?`Wygrywasz ${m[2]}! `:`${m[1]} wygrywa ${m[2]}. `)+m[3].replace(/:/g,',');
+  return '';
+}
+// new lines in the table log since the last state (the log keeps the last 80 lines, so the start may have been cut)
+function newLogLines(a,b){
+  a=a||[]; b=b||[];
+  for(let d=0;d<=a.length;d++){const rest=a.length-d; if(rest>b.length) continue; let same=true; for(let i=0;i<rest;i++) if(a[d+i]!==b[i]){same=false;break} if(same) return b.slice(rest)}
+  return [];
+}
+function dealerVoice(prev,next){
+  if(!prev||tut) return;
+  const added=newLogLines(prev.log,next.log); if(!added.length||added.length>6) return;  // a big jump = reconnect, stay quiet
+  const nh=next.hand, ph=prev.hand;
+  const revealWait=boardAnim&&nh&&boardAnim.no===nh.no?boardAnim.end-Date.now()+350:500;
+  for(const line of added){
+    const t=voiceLine(line); if(!t) continue;
+    const win=/ wygrywa | zgarnia /.test(line);
+    say(t,win?revealWait:0);
+  }
+  if(nh&&ph&&ph.no===nh.no){const nb=(nh.board||[]).length,pb=(ph.board||[]).length;
+    if(nb>pb&&!nh.result) say(nb===3?'Flop':nb===4?'Tern':'Riwer',150)}
+}
+function onStateChangeFx(prev,next){
   const ph=prev&&prev.hand, nh=next.hand;
   if(!nh) return;
   const L=layout(next), pos=id=>{const p=L.pos[id]; const f=feltPos[id]; return p?(f?{x:f.ax,y:f.ay,bx:f.bx,by:f.by}:p):null};
@@ -857,7 +916,7 @@ document.addEventListener('click',async e=>{
 document.addEventListener('input',e=>{if(e.target.id==='betInput'){betAmt=Math.max(0,Math.floor(+e.target.value||0));betChips=null;updateBetUI()}});
 document.addEventListener('keydown',e=>{if(e.target.id==='betInput'&&e.key==='Enter'){e.preventDefault();const b=document.querySelector('[data-a="bet"]');if(b)b.click()}});
 $('fab').onclick=()=>setChat(true);
-$('btnMute').onclick=()=>{muted=!muted;try{localStorage.setItem('ns-mute',muted?'1':'0')}catch(_){}setMuteUI();if(!muted){ac();setTimeout(()=>SFX.chip(2),30)}};
+$('btnMute').onclick=()=>{muted=!muted;if(muted&&HAS_TTS)speechSynthesis.cancel();try{localStorage.setItem('ns-mute',muted?'1':'0')}catch(_){}setMuteUI();if(!muted){ac();setTimeout(()=>SFX.chip(2),30)}};
 setMuteUI();
 document.addEventListener('pointerdown',()=>ac(),{passive:true});
 setInterval(tickTimer,250);
@@ -1008,6 +1067,10 @@ async function openInstall(){
 document.addEventListener('click',e=>{if(e.target.closest('[data-install]'))openInstall()});
 addEventListener('appinstalled',()=>{updateInstallButtons();$('installBox').hidden=true});
 updateInstallButtons();
+function setVoiceUI(){const b=$('voiceBtn');if(!b)return;b.hidden=!HAS_TTS;b.textContent=`🎙 Głos krupierki: ${VOICE.on?'włączony':'wyłączony'}`}
+$('voiceBtn').onclick=()=>{VOICE.on=!VOICE.on;try{localStorage.setItem('kp-voice',VOICE.on?'1':'0')}catch(_){}setVoiceUI();
+  if(VOICE.on){if(muted)toast('Głos krupierki włączony, ale dźwięki są wyciszone (🔇 na górze).');else say('Dzień dobry, zaczynamy grę.')}else if(HAS_TTS)speechSynthesis.cancel()};
+setVoiceUI();
 $('addBotBtn').onclick=async()=>{const ok=await doIt('addBot',{},s=>addBot(s));if(ok){toast('Bot dosiada się do stołu. Zagra od następnego rozdania.');setTimeout(renderOwnerPlayers,300)}};
 $('removeBotsBtn').onclick=async()=>{const ok=await doIt('removeBots',{},(s,now)=>removeBots(s,now));if(ok){toast('Boty wstały od stołu.');setTimeout(renderOwnerPlayers,300)}};
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
