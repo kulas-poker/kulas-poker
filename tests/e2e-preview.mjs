@@ -217,6 +217,9 @@ async function run(width,height,label){
   ok(pre+'krupierka mówi imię i kwotę innego gracza',await ev(`__said.some(t=>/^(Kuba|Marta|Tomek|Ania) (stawia|podbija do) \\d+$/.test(t))`),await ev('__said.join(" | ")'));
   await ev(`mutate((s,now)=>{let g=0;while(handActive(s)&&g++<40){const h=s.hand,id=h.toAct;act(s,id,'fold',0,now)}return true})`);await p.waitForTimeout(1500);
   ok(pre+'krupierka ogłasza zwycięzcę',await ev(`__said.some(t=>/(wygrywa|zgarnia|Wygrywasz|Zgarniasz)/.test(t))`),await ev('__said.join(" | ")'));
+  ok(pre+'remis: krupierka mówi remis, podział i ilość żetonów',await ev(`(()=>{const w=[['','Kuba','60','Para, asy'],['','Marta','60','Para, asy']];const a=tieLine(w);const b=tieLine([['','Kuba','65','Strit'],['','Marta','60','Strit']]);return /^Remis! Podział puli\\. Kuba i Marta, po 60 żetonów\\./.test(a)&&/Kuba 65, Marta 60 żetonów/.test(b)})()`),await ev(`tieLine([['','Kuba','60','Para, asy'],['','Marta','60','Para, asy']])`));
+  await ev(`__said=[];dealerVoice({log:['x'],hand:null},{log:['x','Kuba wygrywa 60 · Para: asy','Marta wygrywa 60 · Para: asy'],hand:null})`);await p.waitForTimeout(700);
+  ok(pre+'remis: zamiast dwóch „wygrywa” jedno „Remis”',await ev(`__said.length===1&&__said[0].startsWith('Remis!')`),await ev('__said.join(" | ")'));
   ok(pre+'krupierka nie mówi nazwiska ani dziennika technicznego',await ev(`__said.every(t=>!/Rozdanie|Nowak|stół:/.test(t))`),await ev('__said.join(" | ")'));
   await p.click('#btnMenu');await p.click('#voiceBtn');await p.click('[data-close="menuBox"]');
   await ev(`__said=[];mutate((s,now)=>{s.hand=null;return startHand(s,now)})`);await p.waitForTimeout(200);

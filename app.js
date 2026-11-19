@@ -604,7 +604,7 @@ function say(text,delay=0){
   setTimeout(()=>{
     if(!VOICE.on||muted||document.hidden) return;
     if(VOICE.q>3){speechSynthesis.cancel();VOICE.q=0}       // never fall far behind the game
-    const u=new SpeechSynthesisUtterance(text); u.lang='pl-PL'; if(VOICE.v) u.voice=VOICE.v; u.rate=1.05; u.pitch=1.08;
+    const u=new SpeechSynthesisUtterance(text); u.lang='pl-PL'; if(VOICE.v) u.voice=VOICE.v; u.rate=0.9; u.pitch=0.92; u.volume=0.8;   // softer, slower, a bit lower and quieter
     VOICE.q++; u.onend=u.onerror=()=>{VOICE.q=Math.max(0,VOICE.q-1)};
     speechSynthesis.speak(u);
   },Math.max(0,delay));
@@ -624,6 +624,14 @@ function voiceLine(line){
   if((m=line.match(/^(.+?) wygrywa (\d+) · (.+)$/))) return (m[1]===myFirst?`Wygrywasz ${m[2]}! `:`${m[1]} wygrywa ${m[2]}. `)+m[3].replace(/:/g,',');
   return '';
 }
+function tieLine(wins){
+  const myFirst=((mySeat()||{}).name||'').split(' ')[0];
+  const who=w=>w[1]===myFirst?'Ty':w[1];
+  const names=wins.map(who), list=names.length>1?names.slice(0,-1).join(', ')+' i '+names[names.length-1]:names[0];
+  const same=wins.every(w=>w[2]===wins[0][2]);
+  const amounts=same?`po ${wins[0][2]} żetonów`:wins.map(w=>`${who(w)} ${w[2]}`).join(', ')+' żetonów';
+  return `Remis! Podział puli. ${list}, ${amounts}. ${wins[0][3].replace(/:/g,',')}`;
+}
 // new lines in the table log since the last state (the log keeps the last 80 lines, so the start may have been cut)
 function newLogLines(a,b){
   a=a||[]; b=b||[];
@@ -635,11 +643,16 @@ function dealerVoice(prev,next){
   const added=newLogLines(prev.log,next.log); if(!added.length||added.length>6) return;  // a big jump = reconnect, stay quiet
   const nh=next.hand, ph=prev.hand;
   const revealWait=boardAnim&&nh&&boardAnim.no===nh.no?boardAnim.end-Date.now()+350:500;
+  // a tie: two or more players win with the same hand → "Remis! Podział puli…"
+  const wins=added.map(l=>l.match(/^(.+?) wygrywa (\d+) · (.+)$/)).filter(Boolean);
+  const tie=wins.length>1&&wins.every(w=>w[3]===wins[0][3]);
   for(const line of added){
+    if(tie&&/ wygrywa \d+ · /.test(line)) continue;
     const t=voiceLine(line); if(!t) continue;
     const win=/ wygrywa | zgarnia /.test(line);
     say(t,win?revealWait:0);
   }
+  if(tie) say(tieLine(wins),revealWait);
   if(nh&&ph&&ph.no===nh.no){const nb=(nh.board||[]).length,pb=(ph.board||[]).length;
     if(nb>pb&&!nh.result) say(nb===3?'Flop':nb===4?'Tern':'Riwer',150)}
 }
