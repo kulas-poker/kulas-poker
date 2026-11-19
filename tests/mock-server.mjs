@@ -2,20 +2,27 @@
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
-import { handleAction, cleanName, nameKey } from '../supabase/functions/_shared/core.mjs';
+import { handleAction, cleanName, nameKey, historyCodeOk } from '../supabase/functions/_shared/core.mjs';
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const TABLE_CODE = 'TEST', ADMIN_PIN = '1234';
+// tests use their own history code (9999), so the real one is not written anywhere in this public repo
+const TEST_HISTORY_HASH = '8e5d69138eab210283b4c7b527b5cdb5ced974df988f21ca68a1e4ca46cc7d66';
 const db = { accounts: new Map(), acc: new Map(), history: [], pub: null, secret: null, holes: null, members: new Set(), chat: [], photos: {}, gifs: [] };
 const clients = new Set();
 const onlineUids = new Map(); // uid -> open pages (like Supabase presence)
 const push = (type) => { for (const res of clients) res.write(`data: ${type}\n\n`); };
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.png': 'image/png' };
 
-function api(route, body, q) {
+async function api(route, body, q) {
   if (route === 'send') {
     const { uid, action, pin } = body; let args = body.args || {};
     const isAdmin = String(pin || '') === ADMIN_PIN;
+    if (action === 'clearHistory') {
+      if (!isAdmin) return { ok: false, error: 'Tylko właściciel stołu może to zrobić.' };
+      if (!(await historyCodeOk(args.code, TEST_HISTORY_HASH))) return { ok: false, error: 'Zły kod. Historia nie została usunięta.' };
+      const n = db.history.length; db.history = []; return { ok: true, deleted: n };
+    }
     if (action === 'adminCheck') return isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false };
     if (action === 'enter' || action === 'join') {
       const typed = String(args.code || '').trim(); var viaPin = typed === ADMIN_PIN;
@@ -59,10 +66,10 @@ export function start(port = 0) {
     if (u.pathname.startsWith('/api/')) {
       let data = '';
       req.on('data', c => data += c);
-      req.on('end', () => {
+      req.on('end', async () => {
         const route = u.pathname.slice(5);
         if (route === 'member') { const uid = u.searchParams.get('uid'); res.end(JSON.stringify({ member: db.members.has(uid), account: db.acc.get(uid) || uid })); return; }
-        const out = api(route, data ? JSON.parse(data) : null, u.searchParams);
+        const out = await api(route, data ? JSON.parse(data) : null, u.searchParams);
         res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(out));
       });
       return;

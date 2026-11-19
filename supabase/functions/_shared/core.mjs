@@ -38,6 +38,14 @@ export function splitState(full) {
   return { pub, secret };
 }
 
+// Clearing the whole game history needs the owner's PIN AND a separate code. Only its hash is kept here (the repo is public).
+export const HISTORY_CODE_HASH = 'eda0ff6b981302e7856e7facfe74b1777f0a5d762b8099c8b9d37b756b915228';
+export async function historyCodeOk(code, hashWanted = HISTORY_CODE_HASH) {
+  const bytes = new TextEncoder().encode('kulas-poker:' + String(code ?? '').trim());
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('') === hashWanted;
+}
+
 const ADMIN_ACTIONS = new Set(['blinds', 'reset', 'resetRanking', 'kick']);
 
 // Returns {ok, error?, state?, secret?, holes?} where holes = {handNo, cards:{id:[c,c]}} when a new hand was dealt.

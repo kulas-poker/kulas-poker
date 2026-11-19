@@ -148,6 +148,11 @@ async function run(width,height,label){
   ok(pre+'rozliczenie się bilansuje',await ev(`(()=>{const g=demoHistory[0];const t=settle(g.players);const b={};g.players.forEach(p=>b[p.id]=p.net);t.forEach(x=>{b[x.fromId]+=x.amount;b[x.toId]-=x.amount});return Object.values(b).every(v=>v===0)})()`));
   ok(pre+'Historia → Gry: zakończona gra z datą i graczami',await ev(`document.querySelectorAll('#histGames .gcard:not(.live)').length===1&&document.querySelectorAll('#histGames .gcard:not(.live) .grow').length>=2&&/rozdań/.test($('histGames').textContent)`));
   await p.click('#htHands');await p.click('[data-close="logBox"]');
+  await ev(`HISTORY_CODE_HASH='8e5d69138eab210283b4c7b527b5cdb5ced974df988f21ca68a1e4ca46cc7d66'`);
+  await p.click('#btnMenu');await p.click('#clearHistBtn');await p.click('#chYes');await p.fill('#chCodeInput','1111');await p.click('#chGo');await p.waitForTimeout(150);
+  ok(pre+'czyszczenie historii: zły kod nic nie usuwa',await ev(`demoHistory.length===1&&!$('clearHistBox').hidden`));
+  await p.fill('#chCodeInput','9999');await p.click('#chGo');await p.waitForTimeout(150);
+  ok(pre+'czyszczenie historii: pytanie, kod, historia pusta',await ev(`demoHistory.length===0&&$('clearHistBox').hidden`));
   ok(pre+'Nowa gra: wszyscy po 1000, bieżący ranking pusty',await ev(`viewState().players.every(p=>p.chips===1000&&p.buyins===1)&&Object.keys(viewState().game).length===0&&Object.keys(viewState().ranking).length>0`));
   // tutorial full run
   await p.click('#btnMenu');await p.click('#tutMenu');await p.waitForTimeout(300);

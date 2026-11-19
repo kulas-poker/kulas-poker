@@ -900,6 +900,24 @@ $('resetConfirm').onclick=async()=>{
   if(ok) toast('Gra zakończona i zapisana w historii. Każdy ma znowu 1000 żetonów.');
   if(ok&&demo) openGamesHistory();
 };
+// owner: clear the whole game history — first "are you sure?", then the security code (checked by the server)
+var HISTORY_CODE_HASH='eda0ff6b981302e7856e7facfe74b1777f0a5d762b8099c8b9d37b756b915228';
+async function historyCodeOkLocal(code){const b=new TextEncoder().encode('kulas-poker:'+String(code||'').trim());const h=await crypto.subtle.digest('SHA-256',b);return [...new Uint8Array(h)].map(x=>x.toString(16).padStart(2,'0')).join('')===HISTORY_CODE_HASH}
+$('clearHistBtn').onclick=()=>{$('menuBox').hidden=true;$('chAsk').hidden=false;$('chCode').hidden=true;$('chCodeInput').value='';$('clearHistBox').hidden=false};
+$('chYes').onclick=()=>{$('chAsk').hidden=true;$('chCode').hidden=false;setTimeout(()=>$('chCodeInput').focus(),50)};
+$('chCodeInput').addEventListener('keydown',e=>{if(e.key==='Enter')$('chGo').click()});
+$('chGo').onclick=async()=>{
+  const code=$('chCodeInput').value.trim();
+  if(!code){toast('Wpisz kod.');return}
+  let ok=false;
+  if(demo){ok=await historyCodeOkLocal(code).catch(()=>false);if(ok)demoHistory.length=0;else toast('Zły kod. Historia nie została usunięta.')}
+  else{if(!KP||busy)return;busy=true;try{const r=await KP.send('clearHistory',{code});ok=!!r.ok;if(!ok)toast(r.error||'Nie udało się wyczyścić historii.')}catch(_){toast('Brak połączenia z serwerem. Sprawdź internet i spróbuj jeszcze raz.')}finally{busy=false}}
+  $('chCodeInput').value='';
+  if(!ok) return;
+  $('clearHistBox').hidden=true;
+  toast('Historia gier została wyczyszczona.');
+  if(!$('logBox').hidden&&histTab==='games') loadGames();
+};
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};

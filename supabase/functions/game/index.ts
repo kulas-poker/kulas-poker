@@ -1,6 +1,6 @@
 // KULAS POKER: game server. Every move goes through here, so cards stay secret and rules are enforced.
 import { createClient } from 'npm:@supabase/supabase-js@2.45.4';
-import { handleAction, cleanName, nameKey } from '../_shared/core.mjs';
+import { handleAction, cleanName, nameKey, historyCodeOk } from '../_shared/core.mjs';
 
 // 'main' is the real table; 'selftest' is a hidden table the publishing robot plays on to check the server
 const TABLES = new Set(['main', 'selftest']);
@@ -38,6 +38,15 @@ Deno.serve(async (req) => {
 
     // the owner gets the table code back, so they can always look it up in the app
     if (action === 'adminCheck') return json(isAdmin ? { ok: true, tableCode: TABLE_CODE } : { ok: false, error: 'Zły PIN.' });
+
+    // owner only: delete every finished game of this table from the history (needs the PIN and the extra code)
+    if (action === 'clearHistory') {
+      if (!isAdmin) return json({ ok: false, error: 'Tylko właściciel stołu może to zrobić.' });
+      if (!(await historyCodeOk(args.code))) return json({ ok: false, error: 'Zły kod. Historia nie została usunięta.' });
+      const { count, error } = await db.from('game_history').delete({ count: 'exact' }).eq('table_id', TABLE);
+      if (error) return json({ ok: false, error: 'Błąd serwera: ' + error.message }, 500);
+      return json({ ok: true, deleted: count ?? 0 });
+    }
 
     let viaPin = false;
     let account: string | null = null; // the player's account (one per full name); moves are made as this account

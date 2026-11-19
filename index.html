@@ -799,8 +799,26 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
       <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupienia). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
       <button class="btn danger" type="button" id="resetBtn">Zakończ grę i zapisz w historii</button>
       <button class="btn danger" type="button" id="resetConfirm" hidden>Na pewno? Kliknij, aby zakończyć grę</button>
+      <button class="btn danger" type="button" id="clearHistBtn">🗑 Wyczyść całą historię gier</button>
     </div>
     <button class="btn" type="button" data-close="menuBox">Zamknij</button>
+  </div>
+</div>
+<div class="overlay" id="clearHistBox" hidden>
+  <div class="sheet">
+    <h2>Wyczyść historię gier</h2>
+    <div id="chAsk" style="display:flex;flex-direction:column;gap:10px">
+      <p><b style="color:var(--fg)">Na pewno?</b> Z historii znikną wszystkie zakończone gry: daty, wyniki graczy i rozliczenia „kto komu przelewa”. Tego nie da się cofnąć.</p>
+      <p>Trwająca gra i ranking zostają bez zmian.</p>
+      <button class="btn danger" type="button" id="chYes">Tak, chcę wyczyścić historię</button>
+      <button class="btn" type="button" data-close="clearHistBox">Anuluj</button>
+    </div>
+    <div id="chCode" hidden style="display:flex;flex-direction:column;gap:10px">
+      <div class="field"><label for="chCodeInput">Wpisz kod zabezpieczający</label>
+        <input type="password" id="chCodeInput" inputmode="numeric" maxlength="12" placeholder="Kod" autocomplete="off"></div>
+      <button class="btn danger" type="button" id="chGo">Usuń całą historię</button>
+      <button class="btn" type="button" data-close="clearHistBox">Anuluj</button>
+    </div>
   </div>
 </div>
 <input type="file" id="photoQuick" accept="image/*" hidden>

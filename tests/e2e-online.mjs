@@ -158,6 +158,24 @@ ok('zakończona gra w historii u innych graczy', /rozdań/.test(gtxt) && gtxt.in
 ok('gracz, który wyszedł wcześniej, jest w historii z godziną', gtxt.includes('Celina Lis') && gtxt.includes('przed końcem gry'));
 ok('po zakończeniu gry wszyscy mają po 1000', await ev(A, 'viewState().players.every(p=>p.chips===1000)'));
 await B.click('[data-close="logBox"]');
+
+// owner clears the whole game history: "are you sure?" first, then the code
+ok('zwykły gracz nie może wyczyścić historii', (await ev(B, `KP.send('clearHistory',{code:'9999'}).then(r=>r.ok)`)) === false && (await ev(B, `KP.history().then(l=>l.length)`)) > 0);
+ok('zwykły gracz nie widzi przycisku czyszczenia historii', await ev(B, `$('ownerTools').hidden`));
+await D.click('[data-close="logBox"]').catch(()=>{}); await sleep(100);
+await D.click('#btnMenu'); await D.click('#clearHistBtn'); await sleep(150);
+ok('czyszczenie historii: najpierw pytanie „na pewno?”', await ev(D, `!$('clearHistBox').hidden && !$('chAsk').hidden && $('chCode').hidden`));
+await D.click('#chAsk [data-close]'); await sleep(100);
+ok('Anuluj nic nie usuwa', (await ev(D, `$('clearHistBox').hidden`)) && (await ev(D, `KP.history().then(l=>l.length)`)) > 0);
+await D.click('#btnMenu'); await D.click('#clearHistBtn'); await D.click('#chYes'); await sleep(150);
+ok('po „Tak” pole na kod', await ev(D, `$('chAsk').hidden && !$('chCode').hidden`));
+await D.fill('#chCodeInput', '1111'); await D.click('#chGo'); await sleep(400);
+ok('zły kod: historia zostaje', (await ev(D, `!$('clearHistBox').hidden`)) && (await ev(D, `KP.history().then(l=>l.length)`)) > 0);
+await D.fill('#chCodeInput', '9999'); await D.click('#chGo'); await sleep(400);
+ok('dobry kod: historia wyczyszczona', (await ev(D, `$('clearHistBox').hidden`)) && (await ev(B, `KP.history().then(l=>l.length)`)) === 0);
+await B.click('#btnLog'); await B.click('#htGames'); await sleep(400);
+ok('po czyszczeniu w Historii nie ma zakończonych gier', await ev(B, `document.querySelectorAll('#histGames .gcard:not(.live)').length===0`));
+await B.click('[data-close="logBox"]');
 for (const p of [A, D]) if (await p.isVisible('#logBox')) await p.click('#logBox [data-close="logBox"]');
 // owner manages the players: someone closed the browser and still sits at the table
 const E = await player('Fryzjer');

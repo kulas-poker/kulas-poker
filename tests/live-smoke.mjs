@@ -93,6 +93,11 @@ try {
   ok('gra zapisana w historii (data, gracze, wynik)', !!rec && rec.hands === 1 && rec.players.length === 2 && rec.players.reduce((a, p) => a + p.net, 0) === 0 && Date.parse(rec.ended_at) > Date.now() - 600000, JSON.stringify(rec)?.slice(0, 200));
   const main = await A.c.from('game_history').select('id').eq('table_id', 'main').limit(1);
   ok('historia prawdziwego stołu osobno od testowej', !main.error);
+  const chNoPin = await A.send('clearHistory', { code: '0000' });
+  ok('czyszczenie historii bez PIN-u odrzucone', chNoPin.ok === false, JSON.stringify(chNoPin));
+  const chBadCode = await A.send('clearHistory', { code: '0000' }, PIN);
+  const still = await A.c.from('game_history').select('id').eq('table_id', 'selftest').limit(1);
+  ok('czyszczenie historii ze złym kodem odrzucone, historia zostaje', chBadCode.ok === false && /kod/i.test(chBadCode.error || '') && (still.data || []).length === 1, JSON.stringify(chBadCode));
   await A.send('leave'); await B.send('leave');
 } catch (e) { ok('stolik testowy', false, String(e && e.message || e)); }
 
