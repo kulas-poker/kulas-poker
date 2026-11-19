@@ -91,7 +91,7 @@ Deno.serve(async (req) => {
         uid: player, action, args: action === 'join' ? { ...args, name } : args, isAdmin, now: Date.now(),
       });
       if (!res.ok) return json(res);
-      if (res.unchanged) return json({ ok: true, admin: viaPin || undefined, account: player });
+      if (res.unchanged) return json({ ok: true, unchanged: true, admin: viaPin || undefined, account: player });
       const { data: v, error } = await db.rpc('save_game', {
         p_id: TABLE, p_expected: g ? g.version : -1, p_state: res.state,
         p_secret: res.secret, p_holes: res.holes ?? null, p_archive: res.archive ?? null,
