@@ -24,6 +24,36 @@ async function introTest(){
   ok('intro bez błędów',errs.length===0,errs.join(' | '));
   await b.close();
 }
+async function installTest(){
+  const b=await chromium.launch();
+  const IOS='Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1';
+  const SAM='Mozilla/5.0 (Linux; Android 14; SM-S921B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/25.0 Chrome/121.0.0.0 Mobile Safari/537.36';
+  const page=async ua=>{const ctx=await b.newContext({viewport:{width:390,height:844},userAgent:ua});await ctx.addInitScript(mock);const p=await ctx.newPage();await p.route('**/fonts.googleapis.com/**',r=>r.abort());await p.goto(base);await p.waitForTimeout(600);return p};
+  // iPhone Safari: instructions with the Share button
+  let p=await page(IOS);
+  ok('instalacja: przycisk na ekranie startowym',await p.evaluate(`!document.querySelector('#join [data-install]').hidden`));
+  await p.click('#join [data-install]');await p.waitForTimeout(150);
+  ok('instalacja iPhone: instrukcja Udostępnij → Do ekranu początkowego',await p.evaluate(`!$('installBox').hidden&&/Udostępnij/.test($('installBody').textContent)&&/Do ekranu początkowego/.test($('installBody').textContent)&&$('installBody').querySelectorAll('li').length===4`));
+  await p.context().close();
+  // iPhone inside Messenger: open in Safari first
+  p=await page(IOS.replace('Safari/604.1','[FBAN/MessengerForiOS;FBAV/450.0]'));
+  await p.click('#join [data-install]');await p.waitForTimeout(150);
+  ok('instalacja iPhone w Messengerze: najpierw otwórz w Safari',await p.evaluate(`/otwórz go w/.test($('installBody').textContent)&&!!$('installBody').querySelector('[data-copy]')`));
+  await p.context().close();
+  // Samsung / Chrome: the system install window from the saved offer
+  p=await page(SAM);
+  await p.evaluate(`window.__asked=0;window.KP_INSTALL={prompt(){window.__asked++},userChoice:Promise.resolve({outcome:'accepted'})}`);
+  await p.click('#join [data-install]');await p.waitForTimeout(200);
+  ok('instalacja Samsung/Chrome: otwiera systemowe okno instalacji',await p.evaluate(`window.__asked===1&&$('installBox').hidden`));
+  await p.evaluate(`window.KP_INSTALL=null`);await p.click('#join [data-install]');await p.waitForTimeout(150);
+  ok('instalacja Samsung bez okna systemowego: instrukcja z menu przeglądarki',await p.evaluate(`/Ekran startowy/.test($('installBody').textContent)`));
+  await p.context().close();
+  // already installed: no button
+  const ctx=await b.newContext({viewport:{width:390,height:844}});await ctx.addInitScript(mock);await ctx.addInitScript(()=>{Object.defineProperty(navigator,'standalone',{get:()=>true})});
+  p=await ctx.newPage();await p.goto(base);await p.waitForTimeout(500);
+  ok('zainstalowana aplikacja: przycisk ukryty',await p.evaluate(`[...document.querySelectorAll('[data-install]')].every(b=>b.hidden)`));
+  await b.close();
+}
 async function run(width,height,label){
   const b=await chromium.launch();const ctx=await b.newContext({viewport:{width,height}});await ctx.addInitScript(mock);const p=await ctx.newPage();
   const errs=[];p.on('pageerror',e=>errs.push(e.message));p.on('console',m=>{if(m.type()==='error'&&!/fonts|ERR_FAILED|Failed to load resource/.test(m.text()))errs.push(m.text())});
@@ -183,4 +213,4 @@ async function run(width,height,label){
   ok(pre+'brak błędów JavaScript',errs.length===0,errs.slice(0,3).join(' | '));
   await b.close();
 }
-(async()=>{await introTest();await run(390,844,'telefon');await run(1280,800,'komputer');console.log(results.join('\n'));console.log(`\nWYNIK: ${results.length-failed}/${results.length} OK`);server.close();process.exit(failed?1:0)})();
+(async()=>{await introTest();await installTest();await run(390,844,'telefon');await run(1280,800,'komputer');console.log(results.join('\n'));console.log(`\nWYNIK: ${results.length-failed}/${results.length} OK`);server.close();process.exit(failed?1:0)})();

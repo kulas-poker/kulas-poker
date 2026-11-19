@@ -879,7 +879,7 @@ document.addEventListener('click',e=>{
 document.addEventListener('click',async e=>{
   const b=e.target.closest('[data-copy]'); if(!b) return;
   const text=decodeURIComponent(b.dataset.copy);
-  try{await navigator.clipboard.writeText(text);toast('Skopiowano rozliczenie: wklej je na czat.')}
+  try{await navigator.clipboard.writeText(text);toast(b.dataset.copyMsg||'Skopiowano rozliczenie: wklej je na czat.')}
   catch(_){toast('Nie udało się skopiować. Zrób zrzut ekranu rozliczenia.')}
 });
 // the game just ended: show everyone the settlement right away
@@ -946,6 +946,60 @@ $('chGo').onclick=async()=>{
   toast('Historia gier została wyczyszczona.');
   if(!$('logBox').hidden&&histTab==='games') loadGames();
 };
+// ---------- install the app on this phone / computer ----------
+const SHARE_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="#5aa9ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+const ADD_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+function appInstalled(){return !!(window.KP_INSTALLED||navigator.standalone||matchMedia('(display-mode: standalone)').matches||matchMedia('(display-mode: fullscreen)').matches)}
+function installPlatform(){
+  const ua=navigator.userAgent||'';
+  const ios=/iPhone|iPad|iPod/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
+  const inApp=/FBAN|FBAV|FB_IAB|Instagram|Messenger|WhatsApp|Line\/|; wv\)/.test(ua);
+  return {ios,inApp,android:/Android/.test(ua),samsung:/SamsungBrowser/.test(ua),iosOther:ios&&/CriOS|FxiOS|EdgiOS|OPiOS/.test(ua)};
+}
+function updateInstallButtons(){document.querySelectorAll('[data-install]').forEach(b=>b.hidden=appInstalled())}
+async function openInstall(){
+  $('menuBox').hidden=true;
+  if(appInstalled()){toast('Aplikacja jest już zainstalowana na tym urządzeniu.');return}
+  const ev=window.KP_INSTALL;
+  if(ev){ // Chrome / Samsung / Edge: the system install window
+    try{ev.prompt();const r=await ev.userChoice;if(r&&r.outcome==='accepted'){window.KP_INSTALL=null;toast('Instaluję aplikację. Ikona Kulas Poker pojawi się na ekranie.');updateInstallButtons()}else toast('Instalacja anulowana. Możesz wrócić do niej w każdej chwili.');return}
+    catch(_){window.KP_INSTALL=null}
+  }
+  const pf=installPlatform(), url=location.origin+location.pathname;
+  let html;
+  if(pf.ios&&pf.inApp){
+    html=`<p>Ta strona jest otwarta w przeglądarce wbudowanej w inną aplikację (np. Messenger lub WhatsApp). Stąd nie da się dodać gry do ekranu.</p>
+    <ol class="install-steps"><li><span>Skopiuj link i otwórz go w <b>Safari</b>.</span></li><li><span>W Safari kliknij jeszcze raz „Pobierz aplikację” i postępuj według instrukcji.</span></li></ol>
+    <button class="btn primary" type="button" data-copy="${esc(encodeURIComponent(url))}" data-copy-msg="Skopiowano link. Wklej go w Safari.">Kopiuj link do gry</button>`;
+  } else if(pf.ios){
+    html=`<p>Na iPhonie aplikację dodaje się z przeglądarki${pf.iosOther?'':' Safari'}, to zajmuje kilka sekund:</p>
+    <ol class="install-steps">
+      <li><span>Kliknij przycisk <b>Udostępnij</b> <span class="ico">${SHARE_SVG}</span> ${pf.iosOther?'(przy pasku adresu)':'na dolnym pasku Safari (albo na górze, przy adresie)'}.</span></li>
+      <li><span>Przewiń listę w dół i wybierz <b>Do ekranu początkowego</b> <span class="ico">${ADD_SVG}</span>.</span></li>
+      <li><span>Upewnij się, że włączone jest <b>Otwórz jako aplikację internetową</b>, i kliknij <b>Dodaj</b> w prawym górnym rogu.</span></li>
+      <li><span>Na ekranie pojawi się złota ikona <b>Kulas Poker</b>. Od teraz otwieraj grę z tej ikony.</span></li>
+    </ol>
+    ${pf.iosOther?'<p class="install-note">Jeśli nie widzisz tej opcji, otwórz grę w Safari.</p>':''}`;
+  } else if(pf.android){
+    html=`<p>${pf.samsung?'W przeglądarce Samsung Internet':'W Chrome na Androidzie'}:</p>
+    <ol class="install-steps">
+      <li><span>Otwórz menu przeglądarki: <b>${pf.samsung?'☰ (na dolnym pasku)':'⋮ (w prawym górnym rogu)'}</b>.</span></li>
+      <li><span>Wybierz <b>${pf.samsung?'Dodaj stronę do → Ekran startowy':'Zainstaluj aplikację'}</b>${pf.samsung?'':' albo <b>Dodaj do ekranu głównego</b>'}.</span></li>
+      <li><span>Potwierdź <b>Zainstaluj</b> / <b>Dodaj</b>. Ikona Kulas Poker pojawi się na ekranie.</span></li>
+    </ol>`;
+  } else {
+    html=`<p>Na komputerze w Chrome lub Edge:</p>
+    <ol class="install-steps">
+      <li><span>Kliknij ikonę instalacji <span class="ico">${ADD_SVG}</span> po prawej stronie paska adresu albo otwórz menu <b>⋮</b>.</span></li>
+      <li><span>Wybierz <b>Zainstaluj Kulas Poker</b> (w menu: <b>Przesyłaj, zapisz i udostępnij → Zainstaluj stronę jako aplikację</b>).</span></li>
+    </ol>
+    <p class="install-note">W Safari na Macu: menu <b>Plik → Dodaj do Docka</b>.</p>`;
+  }
+  $('installBody').innerHTML=html;$('installBox').hidden=false;
+}
+document.addEventListener('click',e=>{if(e.target.closest('[data-install]'))openInstall()});
+addEventListener('appinstalled',()=>{updateInstallButtons();$('installBox').hidden=true});
+updateInstallButtons();
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};

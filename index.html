@@ -11,6 +11,7 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<script>/* keep Chrome's install offer so the "Pobierz aplikację" button can open it later */addEventListener('beforeinstallprompt',e=>{window.KP_INSTALL=e});addEventListener('appinstalled',()=>{window.KP_INSTALL=null;window.KP_INSTALLED=true});</script>
 <style>
 :root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
 body{margin:0;font:14px/1.4 system-ui,sans-serif}
@@ -602,6 +603,12 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* dealer shuffle in the middle of the table */
 .center{transition:opacity .3s}
 .room.shuffling .center{opacity:0}
+.install-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:st}
+.install-steps li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;font-size:15px;line-height:1.45;color:var(--fg)}
+.install-steps li::before{counter-increment:st;content:counter(st);width:28px;height:28px;border-radius:50%;background:var(--brass);color:#1b1408;font-weight:800;display:grid;place-items:center}
+.install-steps .ico{display:inline-flex;vertical-align:-5px;width:22px;height:22px;border-radius:5px;background:rgba(255,255,255,.12);align-items:center;justify-content:center}
+.install-steps .ico svg{width:16px;height:16px}
+.install-note{font-size:13px!important}
 .shuffler{position:absolute;left:50%;top:47%;width:0;height:0;z-index:5;pointer-events:none;--cw:46px;--ch:64px}
 @media (min-width:700px){.shuffler{--cw:56px;--ch:78px}}
 .shuffler .cb{position:absolute;left:0;top:0;width:var(--cw);height:var(--ch);margin:calc(var(--ch)/-2) 0 0 calc(var(--cw)/-2);box-sizing:border-box;border-radius:5px;
@@ -718,6 +725,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <button class="btn primary" type="submit" id="joinBtn" style="padding:14px;font-size:16px">Usiądź przy stole</button>
     <button class="btn" type="button" id="watchBtn">Tylko oglądam</button>
     <button class="btn" type="button" id="demoBtn">Zobacz podgląd gry</button>
+    <button class="btn install-btn" type="button" data-install>📲 Pobierz aplikację na telefon</button>
   </form>
 </div>
 
@@ -777,6 +785,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
     <h2>Menu</h2>
     <button class="btn primary" type="button" id="rankMenu">🏆 Ranking</button>
     <button class="btn" type="button" id="tutMenu">Samouczek</button>
+    <button class="btn install-btn" type="button" data-install>📲 Pobierz aplikację na urządzenie</button>
     <button class="btn" type="button" id="photoChange">Zmień zdjęcie</button>
     <button class="btn" type="button" id="leaveBtn">Opuść stół na dobre (zwolnij miejsce)</button>
     <div class="field" id="ownerLogin" hidden>
@@ -801,6 +810,13 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
       <button class="btn danger" type="button" id="clearHistBtn">🗑 Wyczyść całą historię gier</button>
     </div>
     <button class="btn" type="button" data-close="menuBox">Zamknij</button>
+  </div>
+</div>
+<div class="overlay" id="installBox" hidden>
+  <div class="sheet">
+    <h2>Pobierz aplikację</h2>
+    <div id="installBody"></div>
+    <button class="btn" type="button" data-close="installBox">Zamknij</button>
   </div>
 </div>
 <div class="overlay" id="clearHistBox" hidden>
