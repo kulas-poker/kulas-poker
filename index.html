@@ -20,7 +20,7 @@ img{max-width:100%}
 </style>
 <title>Kulas Poker</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Figtree:wght@400;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Roboto+Slab:wght@700&family=Figtree:wght@400;600;700&display=swap">
 <style>
 /* Layout: one-screen card room. Header strip, oval felt with seats on the rail, action bar at the bottom.
    The chat opens as its own column (desktop) or band under the table (phone) so the felt is never covered. Single dark look by choice. */
@@ -90,14 +90,26 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* playing cards */
 .card{--w:38px;position:relative;width:var(--w);height:calc(var(--w)*1.4);border-radius:calc(var(--w)*.1);background:var(--card);color:var(--card-ink);border:1px solid #5b5b5b;box-sizing:border-box;font-weight:700;line-height:1;box-shadow:0 2px 5px rgba(0,0,0,.4);font-variant-numeric:tabular-nums;flex:none;overflow:hidden;font-family:Georgia,"Times New Roman",serif}
 /* classic face: rank + small suit in the top-left and (upside down) bottom-right corner, big suit in the middle */
-.card .ci{position:absolute;top:5%;left:7%;display:flex;flex-direction:column;align-items:center;font-size:calc(var(--w)*.34);letter-spacing:-.06em;font-weight:800}
-.card .ci i{font-style:normal;font-size:calc(var(--w)*.26);margin-top:1px;font-family:system-ui,sans-serif}
-.card .ci.b{top:auto;left:auto;bottom:5%;right:7%;transform:rotate(180deg)}
-.card .pip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:calc(var(--w)*.58);font-family:system-ui,sans-serif;line-height:1}
-.card.sm .ci{font-size:calc(var(--w)*.42);left:50%;top:8%;transform:translateX(-50%)}
-.card.sm .ci i{font-size:calc(var(--w)*.4)}
-.card.sm .ci.b,.card.sm .pip{display:none}
-.card.red{color:var(--suit-red)}
+/* four-colour deck: big slab-serif index in two corners, suit under it, thin frame in the middle; ♠ black, ♥ red, ♦ blue, ♣ green */
+.card{--ink:#1d2533}
+.card.s-h{--ink:#e0301e}.card.s-d{--ink:#2f5fd6}.card.s-c{--ink:#1e8a4c}.card.s-s{--ink:#1d2533}
+.card .ci{position:absolute;top:4%;left:2%;width:28%;display:flex;flex-direction:column;align-items:center;color:var(--ink);font-family:"Roboto Slab",Rockwell,"Zilla Slab",Georgia,serif;font-weight:700;font-size:calc(var(--w)*.36);line-height:.92;letter-spacing:-.09em}
+.card .ci svg{width:calc(var(--w)*.22);height:calc(var(--w)*.22);margin-top:calc(var(--w)*.03)}
+.card .ci.b{top:auto;left:auto;bottom:4%;right:2%;transform:rotate(180deg)}
+.card .frame{position:absolute;left:31%;right:31%;top:12%;bottom:12%;border:1px solid #6d7fc4;border-radius:1px;transform:none}
+.card .pip{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:calc(var(--w)*.26);height:calc(var(--w)*.26);color:var(--ink)}
+/* small cards (table, own hand on a phone): bigger corner index, slimmer middle frame */
+.card{container-type:inline-size}
+@container (max-width:52px){
+  .card .ci{font-size:44cqw;width:34%;left:1%;letter-spacing:-.1em}
+  .card .ci.b{right:1%}
+  .card .ci svg{width:28cqw;height:28cqw}
+  .card .frame{left:37%;right:37%;top:14%;bottom:14%}
+  .card .pip{width:22cqw;height:22cqw}
+}
+.card.sm .ci{width:auto;left:50%;top:7%;transform:translateX(-50%);font-size:calc(var(--w)*.5)}
+.card.sm .ci svg{width:calc(var(--w)*.42);height:calc(var(--w)*.42)}
+.card.sm .ci.b,.card.sm .pip,.card.sm .frame{display:none}
 .card.back{background:
   repeating-linear-gradient(45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),
   repeating-linear-gradient(-45deg,rgba(255,255,255,.4) 0 1px,transparent 1px 5px),

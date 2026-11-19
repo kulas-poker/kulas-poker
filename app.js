@@ -38,10 +38,16 @@ function initials(name){return esc((name||'?').split(/\s+/).map(w=>w[0]||'').joi
 function cardHtml(c,cls=''){
   if(!c) return `<div class="card slot ${cls}"></div>`;
   if(c==='back'||c==='XX') return `<div class="card back ${cls}"></div>`;
-  const r=c[0]==='T'?'10':c[0], s={s:'♠',h:'♥',d:'♦',c:'♣'}[c[1]], red=c[1]==='h'||c[1]==='d';
-  const r2=r==='10'?'10':r;
-  return `<div class="card ${red?'red':''} ${cls}" aria-label="${r}${s}"><span class="ci">${r2}<i>${s}</i></span><span class="pip">${s}</span><span class="ci b" aria-hidden="true">${r2}<i>${s}</i></span></div>`;
+  const r=c[0]==='T'?'10':c[0], s={s:'♠',h:'♥',d:'♦',c:'♣'}[c[1]], red=c[1]==='h'||c[1]==='d', sv=SUIT_SVG[c[1]];
+  return `<div class="card s-${c[1]} ${red?'red':''} ${cls}" aria-label="${r}${s}"><span class="ci">${r}${sv}</span><span class="frame"></span><span class="pip">${sv}</span><span class="ci b" aria-hidden="true">${r}${sv}</span></div>`;
 }
+// suit shapes drawn the same on every phone (font symbols look different on iPhone and Samsung)
+const SUIT_SVG=(()=>{const w=d=>`<svg viewBox="0 0 100 100" aria-hidden="true" fill="currentColor">${d}</svg>`;return {
+  s:w('<path d="M50 3C41 18 8 38 8 62c0 16 13 25 26 23 7-1 11-5 14-10-1 9-5 16-14 21h32c-9-5-13-12-14-21 3 5 7 9 14 10 13 2 26-7 26-23C92 38 59 18 50 3z"/>'),
+  h:w('<path d="M50 94C38 82 5 60 5 33 5 17 17 7 30 7c9 0 16 5 20 13 4-8 11-13 20-13 13 0 25 10 25 26 0 27-33 49-45 61z"/>'),
+  d:w('<path d="M50 2 87 50 50 98 13 50z"/>'),
+  c:w('<circle cx="50" cy="27" r="21"/><circle cx="26" cy="58" r="21"/><circle cx="74" cy="58" r="21"/><path d="M44 40h12c0 26 4 42 16 56H28c12-14 16-30 16-56z"/>')
+}})();
 function chipFace(d){return `<span class="holo"></span><i class="st s1">♠</i><i class="st s2">♥</i><i class="st s3">♣</i><i class="st s4">♦</i><span class="core"><b>${d}</b></span>`}
 // chips drawn as real piles: each chip is a disc with a striped edge, stacked on top of each other
 function pileCols(cols,cls=''){
