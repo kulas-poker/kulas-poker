@@ -113,5 +113,31 @@ for (let k = 0; k < 3000; k++) {
   for (let i = 0; i < 3000; i++) { run([6000, 1500]); run([1500, 6000]); run([6000, 1500, 3000]); run([6000, 1500, 3000, 800]); run([6000, 1500, 3000, 2000], 3); run([2000, 2000, 500]); }
   console.log(`Pule boczne: ${sp} rozdań all-in sprawdzonych`);
 }
+// test bots: never stuck, never an illegal move, chips always add up, wait 5 s, only move for themselves
+{
+  const s = L.newState(); L.joinPlayer(s, 'human', 'Paweł K');
+  for (let i = 0; i < 9; i++) L.addBot(s);
+  ok(s.players.length === L.MAXP && !L.addBot(s), 'at most 9 players, bots included');
+  ok(s.players.filter(p => p.bot).every(p => /^0{8}-0{4}-4000-8000-\d{12}$/.test(p.id)), 'bot ids look like user ids');
+  ok(new Set(s.players.map(p => p.name)).size === s.players.length, 'every bot has its own name');
+  let t = 0, bh = 0, bm = 0;
+  for (let k = 0; k < 120; k++) {
+    L.readyBots(s); s.players.forEach(p => { if (!p.bot && p.chips <= 0) L.rebuy(s, p.id); });
+    t += 10000; if (!L.dealHand(s, t)) { ok(false, 'bots: next hand'); break; } bh++;
+    let n = 0;
+    while (L.handActive(s) && n++ < 300) {
+      const id = s.hand.toAct;
+      if (L.isBot(s, id)) {
+        ok(!L.botMove(s, s.hand.turnAt + 3000), 'bot waits 5 s');
+        t = s.hand.turnAt + L.BOT_MS; ok(L.botMove(s, t), 'bot always finds a legal move'); bm++;
+      } else { ok(!L.botMove(s, t + 99999), 'botMove never moves for a human'); L.act(s, id, 'call', 0, t) || L.act(s, id, 'check', 0, t); }
+    }
+    ok(!L.handActive(s), 'hand with bots finishes');
+    const total = s.players.reduce((a, p) => a + p.chips, 0), buy = s.players.reduce((a, p) => a + (p.buyins || 1), 0) * L.START;
+    ok(total === buy, 'chips add up with bots');
+  }
+  ok(L.removeBots(s, t) && s.players.length === 1, 'remove all bots');
+  console.log(`Boty: ${bh} rozdań, ${bm} ruchów botów`);
+}
 console.log(`Zasady: ${hands} rozdań, ${checks - fails}/${checks} sprawdzeń OK`);
 if (fails) process.exit(1);

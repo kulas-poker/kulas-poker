@@ -195,6 +195,39 @@ ok('właściciel usuwa gracza, inni to widzą', !(await ev(A, `P(viewState(),${J
 ok('w dzienniku: usunięty przez właściciela', (await ev(A, `(viewState().log||[]).join('|')`)).includes('Właściciel usunął Fryzjer z Turcji'));
 ok('zwykły gracz nie ma listy i nie może usuwać', (await ev(B, `$('ownerTools').hidden`)) && (await ev(B, `KP.send('kick',{id:${JSON.stringify(await ev(A, 'me'))}}).then(r=>r.ok)`)) === false);
 await D.click('[data-close="menuBox"]');
+
+// test bots: only the owner adds them; a bot thinks 5 s and the server decides its move
+ok('zwykły gracz nie może dodać bota', (await ev(B, `KP.send('addBot',{}).then(r=>r.ok)`)) === false);
+const humans = [A, B, D];
+const pageOf = async id => { for (const p of humans) if ((await ev(p, 'me')) === id) return p; return null; };
+const playHumansUntil = async (stop, ms) => { const t0 = Date.now(); while (Date.now() - t0 < ms) {
+  if (await stop()) return true;
+  const st = await ev(D, `(()=>{const s=viewState();return handActive(s)?{id:s.hand.toAct,bot:isBot(s,s.hand.toAct)}:null})()`);
+  if (st && !st.bot) { const p = await pageOf(st.id); if (p) await ev(p, `KP.send('act',{type:'call'}).then(r=>r.ok||KP.send('act',{type:'check'}))`); }
+  await sleep(250); } return false; };
+await playHumansUntil(async () => !(await ev(D, 'handActive(viewState())')), 20000);
+await D.click('#btnMenu'); await sleep(200);
+await D.click('#addBotBtn'); await sleep(500); await D.click('#addBotBtn'); await sleep(600);
+ok('właściciel dodaje 2 boty', (await ev(A, `viewState().players.filter(p=>p.bot).length`)) === 2 && (await ev(D, `$('botsN').textContent`)) === '(2)');
+await D.click('[data-close="menuBox"]');
+const botIds = await ev(D, `viewState().players.filter(p=>p.bot).map(p=>p.id)`);
+let dealt = false; for (let i = 0; i < 20 && !dealt; i++) { dealt = await ev(D, `KP.send('deal',{}).then(r=>r.ok&&!r.unchanged)`); if (!dealt) await sleep(500); }
+await sleep(400);
+ok('boty dostają karty w nowym rozdaniu', dealt && (await ev(D, `(()=>{const h=viewState().hand;return ${JSON.stringify(botIds)}.every(id=>h.order.includes(id))})()`)));
+ok('karty bota są ukryte przed graczami', await ev(A, `(()=>{const h=viewState().hand;return ${JSON.stringify(botIds)}.every(id=>h.hole[id][0]==='XX')})()`));
+// wait for a bot's turn, then time its move
+await playHumansUntil(async () => !!(await ev(D, `isBot(viewState(),viewState().hand&&viewState().hand.toAct)`)), 30000);
+const turn = await ev(D, `({at:viewState().hand.turnAt,id:viewState().hand.toAct,n:(viewState().log||[]).length})`);
+const botClock = await ev(D, `($('feedClock')||$('seatClock')||{}).textContent||''`);
+ok('na zegarze bota liczy się 5 s, nie 2 min', /^0:0[0-5]$/.test(botClock), botClock);
+let movedAt = 0; for (let i = 0; i < 60; i++) { const cur = await ev(D, `(()=>{const h=viewState().hand;return !h||h.result||h.toAct!==${JSON.stringify(turn.id)}||h.turnAt!==${turn.at}})()`); if (cur) { movedAt = Date.now(); break; } await sleep(200); }
+const waited = movedAt - turn.at;
+ok('bot myśli ok. 5 sekund i sam wykonuje ruch', movedAt > 0 && waited >= 4700 && waited < 9000, waited + ' ms');
+const finished = await playHumansUntil(async () => !(await ev(D, 'handActive(viewState())')), 90000);
+ok('rozdanie z botami dochodzi do końca', finished);
+await D.click('#btnMenu'); await sleep(200); await D.click('#removeBotsBtn'); await sleep(600);
+ok('właściciel usuwa boty', (await ev(B, `viewState().players.filter(p=>p.bot).length`)) === 0);
+await D.click('[data-close="menuBox"]');
 ok('brak błędów JavaScript', errs.length === 0, errs.slice(0, 3).join(' | '));
 
 await browser.close(); server.close();

@@ -98,6 +98,35 @@ try {
   const chBadCode = await A.send('clearHistory', { code: '0000' }, PIN);
   const still = await A.c.from('game_history').select('id').eq('table_id', 'selftest').limit(1);
   ok('czyszczenie historii ze złym kodem odrzucone, historia zostaje', chBadCode.ok === false && /kod/i.test(chBadCode.error || '') && (still.data || []).length === 1, JSON.stringify(chBadCode));
+  // a test bot on the real server: owner only, its cards stored like anyone's, it moves after 5 s
+  const noPinBot = await A.send('addBot');
+  ok('bot bez PIN-u odrzucony', noPinBot.ok === false, JSON.stringify(noPinBot));
+  const addB = await A.send('addBot', {}, PIN);
+  let sb = await read(A); const bot = (sb?.players || []).find(p => p.bot);
+  ok('właściciel dodaje bota na prawdziwym serwerze', addB.ok && !!bot, JSON.stringify(addB));
+  const db = await A.send('deal');
+  sb = await read(A);
+  ok('bot dostaje karty (zapis w bazie działa)', db.ok && !!sb?.hand && sb.hand.order.includes(bot?.id), JSON.stringify(db));
+  const caBot = (await A.c.from('hole_cards').select('*').eq('table_id', 'selftest')).data || [];
+  ok('gracz nie widzi kart bota', caBot.length === 1 && caBot[0].player_id === A.id, String(caBot.length));
+  let botMoves = 0, early = null, gb = 0;
+  while (sb && sb.hand && !sb.hand.result && gb++ < 60) {
+    const h = sb.hand;
+    if (h.toAct === bot.id) {
+      if (early === null) { const r = await B.send('botMove'); early = !!(r.ok && !r.unchanged); }
+      for (let i = 0; i < 14; i++) { await new Promise(r => setTimeout(r, 1000)); const r = await B.send('botMove'); if (r.ok && !r.unchanged) { botMoves++; break; } }
+    } else {
+      const who = h.toAct === A.id ? A : B, me = h.st[who.id];
+      const r = await who.send('act', { type: h.currentBet - me.bet > 0 ? 'call' : 'check' }); if (!r.ok) break;
+    }
+    sb = await read(A);
+  }
+  ok('bot nie rusza się przed upływem 5 s', early === false);
+  ok('bot sam wykonuje ruchy na serwerze i rozdanie się kończy', botMoves >= 1 && !!sb?.hand?.result, `${botMoves} ruchów, etap ${sb?.hand?.stage}`);
+  ok('żetony się zgadzają z botem', sb && sb.players.reduce((a, p) => a + p.chips, 0) === sb.players.reduce((a, p) => a + (p.buyins || 1), 0) * 1000);
+  const rmB = await A.send('removeBots', {}, PIN);
+  ok('właściciel usuwa bota', rmB.ok && !((await read(A))?.players || []).some(p => p.bot), JSON.stringify(rmB));
+  await A.send('reset', {}, PIN);
   await A.send('leave'); await B.send('leave');
 } catch (e) { ok('stolik testowy', false, String(e && e.message || e)); }
 

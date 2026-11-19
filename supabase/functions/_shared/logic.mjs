@@ -1,6 +1,6 @@
 // KULAS POKER: game rules. Runs on the server (Supabase Edge Function) and in the offline preview.
 
-const ZL_PER_CHIP=0.1, START=1000, UNIT=5, MAXP=9, SKIP_MS=120000, VERSION=2;
+const ZL_PER_CHIP=0.1, START=1000, UNIT=5, MAXP=9, SKIP_MS=120000, VERSION=2, BOT_MS=5000;
 const DENOMS=[200,100,50,25,10,5];
 const LEVELS=[[5,10],[10,20],[25,50],[50,100],[100,200],[200,400]];
 const RANKS='23456789TJQKA', SUITS='shdc';
@@ -337,9 +337,106 @@ function resetGame(s){
   s.players.forEach(p=>{p.chips=START;p.buyins=1}); s.game={}; s.gameStart=null; s.gameHands=0; s.hand=null; s.log=[];
   addLog(s,`Nowa gra. Wszyscy mają po ${START} żetonów.`); return true;
 }
+// ---------- test bots (owner only) ----------
+const BOT_NAMES=['Adam','Basia','Czarek','Dorota','Edek','Fela','Gienek','Hela','Igor'];
+// bot ids look like user ids (uuid) so the server can store their cards like anyone else's
+function botId(n){return '00000000-0000-4000-8000-'+String(n).padStart(12,'0')}
+function isBot(s,id){const p=P(s,id);return !!(p&&p.bot)}
+function addBot(s){
+  if(s.players.length>=MAXP) return false;
+  let n=1; while(P(s,botId(n))) n++;
+  const used=new Set(s.players.map(p=>p.name));
+  const first=BOT_NAMES.find(x=>!used.has(x+' Bot'))||('Bot'+n);
+  s.players.push({id:botId(n),name:first+' Bot',chips:START,buyins:1,bot:true});
+  addLog(s,`🤖 ${first} Bot siada przy stole (bot testowy).`);
+  return true;
+}
+function removeBots(s,now){
+  const bots=s.players.filter(p=>p.bot); if(!bots.length) return false;
+  bots.forEach(p=>leavePlayer(s,p.id,now,true));
+  return true;
+}
+// before a new hand: bots that ran out of chips buy in again, bots never stay away
+function readyBots(s){s.players.forEach(p=>{if(!p.bot)return;p.away=false;if(p.chips<=0&&!(handActive(s)&&s.hand.st[p.id]&&!s.hand.st[p.id].folded))rebuy(s,p.id)})}
+// chance to win against the players still in the hand (Monte Carlo)
+function equity(hole,board,opps,sims){
+  const used=new Set(hole.concat(board)), rest=freshDeck().filter(c=>!used.has(c));
+  let win=0;
+  for(let n=0;n<sims;n++){
+    const d=rest.slice(); let k=d.length;
+    const draw=()=>{const i=Math.floor(Math.random()*k);const c=d[i];d[i]=d[--k];return c};
+    const b=board.slice(); while(b.length<5) b.push(draw());
+    const mine=best7(hole.concat(b)).score; let best=0, ties=0, lose=false;
+    for(let o=0;o<opps;o++){const sc=best7([draw(),draw()].concat(b)).score; if(sc>mine){lose=true;break} if(sc===mine) ties++}
+    if(!lose) win+= ties? 1/(ties+1) : 1;
+  }
+  return win/sims;
+}
+// an advanced bot: plays by its chance to win, pot odds, position and stack; bets for value, sometimes bluffs
+function botDecide(s,id,rand=Math.random){
+  const h=s.hand, st=h.st[id], p=P(s,id);
+  const toCall=Math.max(0,h.currentBet-st.bet), stack=p.chips, pot=h.pot, bb=h.bbAmt;
+  const live=h.order.filter(o=>!h.st[o].folded), opps=live.length-1;
+  const active=live.filter(o=>!h.st[o].allIn&&o!==id).length;
+  const sims=Math.max(150,Math.min(500,Math.floor(1400/(opps+1))));
+  const eq=equity(h.hole[id],h.board,Math.max(1,opps),sims);
+  const fair=1/(opps+1), odds=toCall>0?toCall/(pot+toCall):0;
+  const pos=(h.order.indexOf(id)-h.order.indexOf(h.dealer)+h.order.length)%h.order.length; // 0 = dealer (best seat)
+  const late=pos===0||pos>=h.order.length-1;
+  const r=rand();
+  const mayRaise=canRaise(h,id)&&stack>toCall&&active>0;
+  const allin={type:'allin',amount:0};
+  const raiseTo=to=>{
+    to=Math.max(to,h.currentBet+h.minRaise);
+    if(to>=st.bet+stack*0.85) return allin;          // nearly everything anyway: push
+    return {type:'raise',amount:Math.ceil(to/UNIT)*UNIT};
+  };
+  const potBet=f=>raiseTo(h.currentBet+Math.round((pot+toCall)*f));
+  if(h.stage==='preflop'){
+    const opened=h.currentBet>bb;
+    if(eq>fair*2.1&&eq>0.42){                        // premium: raise / re-raise
+      if(mayRaise) return opened?raiseTo(h.currentBet*3):raiseTo(bb*3+bb*Math.max(0,live.length-2)*0.5);
+      return toCall>0?{type:'call'}:{type:'check'};
+    }
+    if(eq>fair*1.45){                                 // good: open from position, call reasonable raises
+      if(!opened&&mayRaise&&(late||r<0.55)) return raiseTo(bb*(2.5+r));
+      if(toCall===0) return {type:'check'};
+      if(toCall<=Math.max(bb*4,stack*0.12)||eq>odds+0.12) return {type:'call'};
+      return {type:'fold'};
+    }
+    if(toCall===0){ if(late&&mayRaise&&r<0.18) return raiseTo(bb*2.5); return {type:'check'} }   // steal sometimes
+    if(toCall<=bb&&eq>fair*1.05) return {type:'call'};
+    if(eq>odds+0.06&&toCall<=stack*0.08) return {type:'call'};
+    return {type:'fold'};
+  }
+  // after the flop
+  const strong=eq>Math.max(0.68,fair*2.2), good=eq>Math.max(0.5,fair*1.5), draw=h.stage!=='river'&&eq>fair*1.05;
+  if(toCall===0){
+    if(strong&&mayRaise) return r<0.15&&h.stage!=='river'?{type:'check'}:potBet(0.55+r*0.35);   // value bet, slow-play now and then
+    if(good&&mayRaise&&r<0.75) return potBet(0.45+r*0.2);
+    if(draw&&mayRaise&&r<0.3) return potBet(0.5);                                                 // semi-bluff
+    if(mayRaise&&opps<=2&&late&&r<0.12) return potBet(0.5);                                       // pure bluff
+    return {type:'check'};
+  }
+  if(strong){ if(mayRaise&&r<0.7) return raiseTo(h.currentBet*2+Math.round(pot*0.4)); return {type:'call'} }
+  if(good&&eq>odds) return mayRaise&&r<0.12?raiseTo(h.currentBet*2.5):{type:'call'};
+  const need=odds+(toCall>=stack?0.08:0.03);
+  if(eq>need) return {type:'call'};
+  if(mayRaise&&opps===1&&h.stage!=='river'&&r<0.05) return raiseTo(h.currentBet*2.5);            // rare bluff raise
+  return {type:'fold'};
+}
+// the bot whose turn it is moves (after BOT_MS); a move that turns out impossible falls back to call/check/fold
+function botMove(s,now){
+  if(!handActive(s)) return false;
+  const h=s.hand, id=h.toAct; if(!isBot(s,id)) return false;
+  if(now-(h.turnAt||0)<BOT_MS-250) return false;
+  const d=botDecide(s,id);
+  if(act(s,id,d.type,d.amount||0,now)) return true;
+  return act(s,id,'call',0,now)||act(s,id,'check',0,now)||act(s,id,'fold',0,now);
+}
 function resetRanking(s){ s.ranking={}; addLog(s,'Ranking wszechczasów został wyzerowany.'); return true; }
 
-export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
+export {ZL_PER_CHIP,START,UNIT,MAXP,SKIP_MS,VERSION,BOT_MS,botId,isBot,addBot,removeBots,readyBots,equity,botDecide,botMove,DENOMS,LEVELS,RANKS,SUITS,CAT,HL_MS,
   freshDeck,rnd,shuffle,eval5,best7,newState,migrate,P,nm,addLog,nextIn,commit,handActive,breakdown,
   startHand,drawCard,dealStreet,cardTxt,statRow,recordHand,revealAll,proceed,act,winAll,showdown,foldOut,
   handLabel,settle,canRaise,joinPlayer,leavePlayer,rebuy,sitOut,sitIn,setAutoFold,autoFoldTurn,gameRecord,endGame,showCards,dealHand,timeoutFold,setBlinds,resetGame,resetRanking};

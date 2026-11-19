@@ -46,7 +46,7 @@ export async function historyCodeOk(code, hashWanted = HISTORY_CODE_HASH) {
   return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('') === hashWanted;
 }
 
-const ADMIN_ACTIONS = new Set(['blinds', 'reset', 'resetRanking', 'kick']);
+const ADMIN_ACTIONS = new Set(['blinds', 'reset', 'resetRanking', 'kick', 'addBot', 'removeBots']);
 
 // Returns {ok, error?, state?, secret?, holes?} where holes = {handNo, cards:{id:[c,c]}} when a new hand was dealt.
 export function handleAction({ publicState, secret, uid, action, args = {}, isAdmin = false, now = Date.now() }) {
@@ -55,7 +55,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
   const s = mergeState(publicState, secret);
   const prevNo = s.hand ? s.hand.no : null;
   const seated = !!G.P(s, uid);
-  const needSeat = !['join', 'timeout', 'blinds', 'reset', 'resetRanking', 'kick'].includes(action);
+  const needSeat = !['join', 'timeout', 'botMove', 'blinds', 'reset', 'resetRanking', 'kick', 'addBot', 'removeBots'].includes(action);
   if (needSeat && !seated) return { ok: false, error: 'Najpierw usiądź przy stole.' };
 
   let done = false;
@@ -63,7 +63,7 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
   switch (action) {
     case 'join': done = G.joinPlayer(s, uid, args.name); if (!done) return { ok: false, error: s.players.length >= G.MAXP ? 'Stół jest pełny.' : 'Wpisz imię i nazwisko.' }; break;
     case 'leave': done = G.leavePlayer(s, uid, now); break;
-    case 'deal': done = G.dealHand(s, now); break;
+    case 'deal': G.readyBots(s); done = G.dealHand(s, now); break;
     case 'act': {
       const type = String(args.type || '');
       if (!['fold', 'check', 'call', 'raise', 'allin'].includes(type)) return { ok: false, error: 'Nieznany ruch.' };
@@ -80,6 +80,9 @@ export function handleAction({ publicState, secret, uid, action, args = {}, isAd
     case 'blinds': done = G.setBlinds(s, Number(args.sb), Number(args.bb)); break;
     case 'reset': archive = G.endGame(s, now); done = true; break;
     case 'resetRanking': done = G.resetRanking(s); break;
+    case 'addBot': done = G.addBot(s); if (!done) return { ok: false, error: 'Stół jest pełny.' }; break;
+    case 'removeBots': done = G.removeBots(s, now); break;
+    case 'botMove': done = G.botMove(s, now); break;   // anyone at the table may nudge a bot; the server decides its move
     case 'kick': done = G.leavePlayer(s, String(args.id || ''), now, true); break; // owner removes a player who is gone
     default: return { ok: false, error: 'Nieznana akcja.' };
   }

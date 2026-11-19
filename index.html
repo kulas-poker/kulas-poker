@@ -603,6 +603,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
 /* dealer shuffle in the middle of the table */
 .center{transition:opacity .3s}
 .room.shuffling .center{opacity:0}
+.botface{font-size:1.35em;line-height:1}
+.bots-box{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;background:rgba(0,0,0,.12)}
+.bots-head{font-weight:700;color:var(--fg)}.bots-head b{color:var(--brass)}
+.bots-box p{font-size:12.5px!important}
+.bots-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .install-steps{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px;counter-reset:st}
 .install-steps li{display:grid;grid-template-columns:28px 1fr;gap:10px;align-items:start;font-size:15px;line-height:1.45;color:var(--fg)}
 .install-steps li::before{counter-increment:st;content:counter(st);width:28px;height:28px;border-radius:50%;background:var(--brass);color:#1b1408;font-weight:800;display:grid;place-items:center}
@@ -804,6 +809,11 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--brass);outline-
         <p class="op-note">Minus usuwa gracza od stołu (np. gdy zamknął aplikację). Jego wynik zostaje w grze i w historii, a w bieżącym rozdaniu pasuje.</p>
       </details>
       <button class="btn" type="button" id="blindsMenuBtn">Zmień ciemne</button>
+      <div class="bots-box">
+        <div class="bots-head">🤖 Boty testowe <b id="botsN"></b></div>
+        <p>Widzisz je tylko Ty, jako właściciel. Bot myśli 5 sekund i gra na poziomie zaawansowanym. Jego wyniki liczą się w grze jak każdego gracza.</p>
+        <div class="bots-btns"><button class="btn" type="button" id="addBotBtn">+ Dodaj bota</button><button class="btn" type="button" id="removeBotsBtn">Usuń wszystkie boty</button></div>
+      </div>
       <p>Koniec gry: gra trafia do historii (data, gracze, kto ile wygrał i przegrał, dokupienia). Potem każdy dostaje 1000 żetonów na nową grę. Bieżące rozdanie przepada.</p>
       <button class="btn danger" type="button" id="resetBtn">Zakończ grę i zapisz w historii</button>
       <button class="btn danger" type="button" id="resetConfirm" hidden>Na pewno? Kliknij, aby zakończyć grę</button>

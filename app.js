@@ -106,7 +106,7 @@ function dealDelay(id,ci){
 }
 function avatarHtml(p,extra=''){
   const img=photos[p.id];
-  return img?`<img src="${esc(img)}" alt="">${extra}`:`${initials(p.name)}${extra}`;
+  return img?`<img src="${esc(img)}" alt="">${extra}`:p.bot?`<span class="botface">🤖</span>${extra}`:`${initials(p.name)}${extra}`;
 }
 
 function online(){return serverOk&&isMember||demo}
@@ -633,7 +633,14 @@ function onStateChange(prev,next){
 // ---------- turn timer ----------
 let autoActedFor=null, lastTickSec=-1;
 let lastTimeoutTry=0;
+let botNext=0;
 function tickTimer(){
+  // a test bot thinks for 5 s, then the server makes its move (any open app may ask; only one move counts)
+  if(state&&handActive(state)&&isBot(state,state.hand.toAct)&&Date.now()-(state.hand.turnAt||0)>=BOT_MS&&Date.now()>=botNext&&!tut){
+    botNext=Date.now()+1000+Math.random()*400;
+    if(demo) mutate((ns,now)=>botMove(ns,now));
+    else if(KP&&serverOk) KP.send('botMove',{}).catch(()=>{});
+  }
   if(!demo&&state&&handActive(state)&&state.hand.toAct!==me&&mySeat()){
     const lft=SKIP_MS-(Date.now()-(state.hand.turnAt||0));
     if(lft<-3000&&Date.now()-lastTimeoutTry>5000){lastTimeoutTry=Date.now();KP&&KP.send('timeout',{}).catch(()=>{})}
@@ -641,9 +648,10 @@ function tickTimer(){
   if(!state) return;
   const s=viewState(), h=s.hand;
   if(!handActive(s)||!h.toAct) return;
-  const left=Math.max(0,SKIP_MS-(Date.now()-(h.turnAt||0)));
+  const lim=isBot(s,h.toAct)?BOT_MS:SKIP_MS;
+  const left=Math.max(0,lim-(Date.now()-(h.turnAt||0)));
   const ring=document.querySelector('.seat.turn .ring');
-  if(ring){ring.style.setProperty('--p',(left/SKIP_MS).toFixed(3));ring.style.setProperty('--rc',left<15000?'#e5534b':'var(--brass)')}
+  if(ring){ring.style.setProperty('--p',(left/lim).toFixed(3));ring.style.setProperty('--rc',lim===BOT_MS?'#8fb3ff':left<15000?'#e5534b':'var(--brass)')}
   const sc=$('seatClock'); if(sc){sc.textContent=fmtClock(left);sc.classList.toggle('low',left<15000)}
   const fc=$('feedClock'); if(fc){fc.textContent=fmtClock(left);fc.classList.toggle('low',left<15000)}
   if(h.toAct===me){
@@ -827,7 +835,7 @@ document.addEventListener('click',async e=>{
   if(a==='sit'){watching=false;render();return}
   if(a==='away') return doIt('away',{},(s,now)=>sitOut(s,me,now));
   if(a==='back') return doIt('back',{},s=>sitIn(s,me));
-  if(a==='deal') return doIt('deal',{},(s,now)=>dealHand(s,now));
+  if(a==='deal') return doIt('deal',{},(s,now)=>{readyBots(s);return dealHand(s,now)});
   if(a==='rebuy') return doIt('rebuy',{},s=>rebuy(s,me));
   if(a==='show') return doIt('show',{},s=>showCards(s,me));
   if(a==='skip') return doIt('timeout',{},(s,now)=>timeoutFold(s,now));
@@ -1000,6 +1008,8 @@ async function openInstall(){
 document.addEventListener('click',e=>{if(e.target.closest('[data-install]'))openInstall()});
 addEventListener('appinstalled',()=>{updateInstallButtons();$('installBox').hidden=true});
 updateInstallButtons();
+$('addBotBtn').onclick=async()=>{const ok=await doIt('addBot',{},s=>addBot(s));if(ok){toast('Bot dosiada się do stołu. Zagra od następnego rozdania.');setTimeout(renderOwnerPlayers,300)}};
+$('removeBotsBtn').onclick=async()=>{const ok=await doIt('removeBots',{},(s,now)=>removeBots(s,now));if(ok){toast('Boty wstały od stołu.');setTimeout(renderOwnerPlayers,300)}};
 $('watchBtn').onclick=async()=>{const code=$('codeInput').value.trim();if(!code){toast('Żeby oglądać, też wpisz kod stołu.');return}if(!KP||!serverOk)return;if(await enterTable(code)){watching=true;render()}};
 $('photoInput').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{pendingPhoto=await resizeImage(f);$('photoPreview').innerHTML=`<img src="${pendingPhoto}" alt="">`}catch(_){toast('Nie udało się wczytać zdjęcia.')}};
 $('photoQuick').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const d=await resizeImage(f);photos[me]=d;render();await savePhoto(d)}catch(_){toast('Nie udało się wczytać zdjęcia.')}e.target.value=''};
@@ -1060,7 +1070,7 @@ function demoTick(){
   clearTimeout(demoTimer);
   if(!demo||!state||tut) return;
   const s=viewState(), h=s.hand;
-  if(!handActive(s)||h.toAct===me) return;
+  if(!handActive(s)||h.toAct===me||isBot(s,h.toAct)) return;   // test bots move on their own (tickTimer)
   demoTimer=setTimeout(()=>{
     if(!demo) return;
     mutate((ns,now)=>{
@@ -1263,6 +1273,7 @@ function renderOwnerPlayers(){
   const box=$('ownerPlayersList'); if(!box||!isOwner) return;
   const s=viewState();
   $('ownerPlayersN').textContent=`(${s.players.length})`;
+  const nb=s.players.filter(p=>p.bot).length; $('botsN').textContent=nb?`(${nb})`:''; $('removeBotsBtn').disabled=!nb; $('addBotBtn').disabled=s.players.length>=MAXP;
   if(kickAsk&&!P(s,kickAsk)) kickAsk=null;
   box.innerHTML=s.players.length?s.players.map(p=>{
     const on=p.id===me||demo||!onlineIds?null:onlineIds.has(p.id);
@@ -1270,7 +1281,7 @@ function renderOwnerPlayers(){
     const ask=kickAsk===p.id, id=esc(p.id);
     const btns=p.id===me?'':ask?`<button class="btn danger" type="button" data-kick-yes="${id}">Usuń</button><button class="btn" type="button" data-kick-no="1">Nie</button>`
       :`<button class="op-minus" type="button" data-kick="${id}" aria-label="Usuń ${esc(p.name)} od stołu" title="Usuń od stołu">−</button>`;
-    return `<div class="op-row${ask?' ask':''}" data-op="${id}"><span class="op-av">${photos[p.id]?`<img src="${esc(photos[p.id])}" alt="">`:initials(p.name)}</span><div class="op-txt"><b>${esc(p.name)}</b><small>${ask?'Usunąć od stołu?':info}</small></div>${btns}</div>`;
+    return `<div class="op-row${ask?' ask':''}" data-op="${id}"><span class="op-av">${photos[p.id]?`<img src="${esc(photos[p.id])}" alt="">`:p.bot?'🤖':initials(p.name)}</span><div class="op-txt"><b>${esc(p.name)}</b><small>${ask?'Usunąć od stołu?':info}</small></div>${btns}</div>`;
   }).join(''):'<p class="op-note">Nikt jeszcze nie siedzi przy stole.</p>';
 }
 document.addEventListener('click',async e=>{
